@@ -148,7 +148,9 @@ const initDb = async () => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-
+    await pool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cost NUMERIC(6, 2);");
+    await pool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) DEFAULT 'monthly';");
+    await pool.query("UPDATE subscriptions SET cost = monthly_cost WHERE cost IS NULL;");
     // 3. Create categories reference table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS categories (

@@ -173,6 +173,7 @@ function App() {
           <Subscriptions 
             token={token} 
             subscriptions={subscriptions} 
+            games={games}
             onRefresh={() => { fetchSubscriptions(); fetchGames(); }}
           />
         )}

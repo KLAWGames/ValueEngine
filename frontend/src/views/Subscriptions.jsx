@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { CreditCard, Plus, Edit, Trash2, ToggleLeft, ToggleRight, X, AlertCircle } from 'lucide-react';
 
-function Subscriptions({ token, subscriptions, onRefresh }) {
+function Subscriptions({ token, subscriptions, games = [], onRefresh }) {
   const [activeModal, setActiveModal] = useState(null); // 'addSub' | 'editSub'
   const [selectedSub, setSelectedSub] = useState(null);
 
   // Form states
   const [name, setName] = useState('');
   const [cost, setCost] = useState('');
+  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'yearly'
   const [isActive, setIsActive] = useState(true);
 
   const openAddModal = () => {
     setName('');
     setCost('');
+    setBillingCycle('monthly');
     setIsActive(true);
     setActiveModal('addSub');
   };
@@ -20,8 +22,9 @@ function Subscriptions({ token, subscriptions, onRefresh }) {
   const openEditModal = (sub) => {
     setSelectedSub(sub);
     setName(sub.name);
-    setCost(sub.monthly_cost.toString());
-    setIsActive(sub.is_active === 1);
+    setCost((sub.cost || sub.monthly_cost).toString());
+    setBillingCycle(sub.billing_cycle || 'monthly');
+    setIsActive(!!sub.is_active);
     setActiveModal('editSub');
   };
 
@@ -36,7 +39,8 @@ function Subscriptions({ token, subscriptions, onRefresh }) {
         },
         body: JSON.stringify({
           name,
-          monthly_cost: parseFloat(cost),
+          cost: parseFloat(cost),
+          billing_cycle: billingCycle,
           is_active: isActive
         })
       });
@@ -64,7 +68,8 @@ function Subscriptions({ token, subscriptions, onRefresh }) {
         },
         body: JSON.stringify({
           name,
-          monthly_cost: parseFloat(cost),
+          cost: parseFloat(cost),
+          billing_cycle: billingCycle,
           is_active: isActive
         })
       });
@@ -110,7 +115,7 @@ function Subscriptions({ token, subscriptions, onRefresh }) {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          is_active: sub.is_active === 1 ? false : true
+          is_active: !sub.is_active
         })
       });
       if (res.ok) {
@@ -156,50 +161,94 @@ function Subscriptions({ token, subscriptions, onRefresh }) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-          {subscriptions.map(sub => (
-            <div key={sub.subscription_id} className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifycontent: 'space-between', minHeight: '180px' }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{sub.name}</h3>
-                    <span style={{ fontSize: '0.8rem', color: sub.is_active === 1 ? 'var(--accent)' : 'var(--text-muted)', fontWeight: '600' }}>
-                      {sub.is_active === 1 ? '● Billing Active' : '○ Billing Suspended'}
-                    </span>
+          {subscriptions.map(sub => {
+            const subGames = games.filter(g => g.subscription_id === sub.subscription_id);
+            const totalHours = subGames.reduce((acc, g) => acc + parseFloat(g.overall_hours || g.total_hours || 0), 0);
+            const gameCount = subGames.length;
+            const subCost = parseFloat(sub.cost || sub.monthly_cost || 0);
+            const subCycle = sub.billing_cycle || 'monthly';
+            const isSubActive = !!sub.is_active;
+
+            const getCostEfficiencyGrade = (hours, monthlyCost) => {
+              if (!isSubActive) return { grade: 'Billing Suspended', color: 'var(--text-muted)' };
+              if (hours === 0) return { grade: 'F (Unused Waste)', color: '#f87171' };
+              const yieldRatio = monthlyCost / hours;
+              if (yieldRatio > 3.0) return { grade: 'D (Poor Value)', color: '#fca5a5' };
+              if (yieldRatio > 1.5) return { grade: 'C (Average Value)', color: 'var(--text-secondary)' };
+              if (yieldRatio > 0.75) return { grade: 'B (Good Value)', color: 'var(--accent)' };
+              return { grade: 'A+ (Elite Value)', color: '#34d399' };
+            };
+
+            const efficiency = getCostEfficiencyGrade(totalHours, parseFloat(sub.monthly_cost));
+
+            return (
+              <div key={sub.subscription_id} className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '240px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', marginBottom: '4px', fontWeight: 'bold' }}>{sub.name}</h3>
+                      <span style={{ fontSize: '0.8rem', color: isSubActive ? 'var(--accent)' : 'var(--text-muted)', fontWeight: '600' }}>
+                        {isSubActive ? '● Billing Active' : '○ Billing Suspended'}
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.4rem', fontWeight: '800', fontFamily: 'var(--font-display)', color: 'var(--primary)' }}>
+                        ${subCost.toFixed(2)}/{subCycle === 'yearly' ? 'yr' : 'mo'}
+                      </div>
+                      {subCycle === 'yearly' && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          (equiv. ${parseFloat(sub.monthly_cost).toFixed(2)}/mo)
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: '800', fontFamily: 'var(--font-display)', color: 'var(--primary)' }}>
-                    ${sub.monthly_cost.toFixed(2)}/mo
+
+                  {/* Efficiency and playtime statistics */}
+                  <div className="sub-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Games Logged</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: '700' }}>{gameCount}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Hours</span>
+                      <span style={{ fontSize: '1.05rem', fontWeight: '700' }}>{totalHours.toFixed(1)} hrs</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Value Efficiency</span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: '800', color: efficiency.color }}>{efficiency.grade}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <button 
-                  className="card-action-btn"
-                  onClick={() => handleToggleActive(sub)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  {sub.is_active === 1 ? (
-                    <>
-                      <ToggleRight size={18} style={{ color: 'var(--accent)' }} />
-                      <span>Suspend</span>
-                    </>
-                  ) : (
-                    <>
-                      <ToggleLeft size={18} style={{ color: 'var(--text-muted)' }} />
-                      <span>Activate</span>
-                    </>
-                  )}
-                </button>
-                <button className="card-action-btn" onClick={() => openEditModal(sub)}>
-                  <Edit size={14} />
-                  <span>Edit</span>
-                </button>
-                <button className="card-action-btn" style={{ flex: 'none', width: '38px', color: 'var(--danger)' }} onClick={() => handleDelete(sub.subscription_id)}>
-                  <Trash2 size={14} />
-                </button>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <button 
+                    className="card-action-btn"
+                    onClick={() => handleToggleActive(sub)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    {isSubActive ? (
+                      <>
+                        <ToggleRight size={18} style={{ color: 'var(--accent)' }} />
+                        <span>Suspend</span>
+                      </>
+                    ) : (
+                      <>
+                        <ToggleLeft size={18} style={{ color: 'var(--text-muted)' }} />
+                        <span>Activate</span>
+                      </>
+                    )}
+                  </button>
+                  <button className="card-action-btn" onClick={() => openEditModal(sub)}>
+                    <Edit size={14} />
+                    <span>Edit</span>
+                  </button>
+                  <button className="card-action-btn" style={{ flex: 'none', width: '38px', color: 'var(--danger)' }} onClick={() => handleDelete(sub.subscription_id)}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -227,18 +276,32 @@ function Subscriptions({ token, subscriptions, onRefresh }) {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Monthly Cost ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="form-input"
-                  placeholder="e.g. 16.99"
-                  value={cost}
-                  onChange={(e) => setCost(e.target.value)}
-                  required
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Billing Cycle</label>
+                  <select
+                    className="form-input form-select"
+                    value={billingCycle}
+                    onChange={(e) => setBillingCycle(e.target.value)}
+                  >
+                    <option value="monthly">Monthly Billing</option>
+                    <option value="yearly">Yearly Billing</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Cost ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="form-input"
+                    placeholder={billingCycle === 'yearly' ? 'e.g. 159.99' : 'e.g. 16.99'}
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>

@@ -130,25 +130,31 @@ app.get('/api/subscriptions', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/subscriptions', authenticateToken, async (req, res) => {
-  const { name, monthly_cost, is_active } = req.body;
-  if (!name || monthly_cost === undefined) {
-    return res.status(400).json({ error: 'Name and monthly cost are required' });
+  const { name, cost, monthly_cost, billing_cycle, is_active } = req.body;
+  
+  const costVal = parseFloat(cost !== undefined ? cost : (monthly_cost !== undefined ? monthly_cost : 0));
+  if (!name || costVal === undefined) {
+    return res.status(400).json({ error: 'Name and cost are required' });
   }
 
   try {
     const subscriptionId = crypto.randomUUID();
+    const cycleVal = billing_cycle || 'monthly';
+    const monthlyCost = cycleVal === 'yearly' ? costVal / 12.0 : costVal;
     const isActiveVal = is_active !== false;
     
     await db.query(`
-      INSERT INTO subscriptions (subscription_id, user_id, name, monthly_cost, is_active)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [subscriptionId, req.user.userId, name, parseFloat(monthly_cost), isActiveVal]);
+      INSERT INTO subscriptions (subscription_id, user_id, name, monthly_cost, cost, billing_cycle, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [subscriptionId, req.user.userId, name, monthlyCost, costVal, cycleVal, isActiveVal]);
     
     res.status(201).json({
       subscription_id: subscriptionId,
       user_id: req.user.userId,
       name,
-      monthly_cost: parseFloat(monthly_cost),
+      monthly_cost: monthlyCost,
+      cost: costVal,
+      billing_cycle: cycleVal,
       is_active: isActiveVal
     });
   } catch (err) {
@@ -158,7 +164,7 @@ app.post('/api/subscriptions', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/subscriptions/:id', authenticateToken, async (req, res) => {
-  const { name, monthly_cost, is_active } = req.body;
+  const { name, cost, monthly_cost, billing_cycle, is_active } = req.body;
   const { id } = req.params;
 
   try {
@@ -169,19 +175,23 @@ app.put('/api/subscriptions/:id', authenticateToken, async (req, res) => {
     }
 
     const updatedName = name || sub.name;
-    const updatedCost = monthly_cost !== undefined ? parseFloat(monthly_cost) : parseFloat(sub.monthly_cost);
+    const updatedCost = cost !== undefined ? parseFloat(cost) : (monthly_cost !== undefined ? parseFloat(monthly_cost) : parseFloat(sub.cost || sub.monthly_cost || 0));
+    const updatedCycle = billing_cycle || sub.billing_cycle || 'monthly';
+    const updatedMonthlyCost = updatedCycle === 'yearly' ? updatedCost / 12.0 : updatedCost;
     const updatedActive = is_active !== undefined ? !!is_active : sub.is_active;
 
     await db.query(`
       UPDATE subscriptions 
-      SET name = $1, monthly_cost = $2, is_active = $3
-      WHERE subscription_id = $4 AND user_id = $5
-    `, [updatedName, updatedCost, updatedActive, id, req.user.userId]);
+      SET name = $1, cost = $2, billing_cycle = $3, monthly_cost = $4, is_active = $5
+      WHERE subscription_id = $6 AND user_id = $7
+    `, [updatedName, updatedCost, updatedCycle, updatedMonthlyCost, updatedActive, id, req.user.userId]);
 
     res.json({
       subscription_id: id,
       name: updatedName,
-      monthly_cost: updatedCost,
+      cost: updatedCost,
+      billing_cycle: updatedCycle,
+      monthly_cost: updatedMonthlyCost,
       is_active: updatedActive
     });
   } catch (err) {
