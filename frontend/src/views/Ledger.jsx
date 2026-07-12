@@ -128,6 +128,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   const [historyLogs, setHistoryLogs] = useState([]);
   const [addToTotal, setAddToTotal] = useState(true);
   const [overallHoursInput, setOverallHoursInput] = useState('0');
+  const [playtimeFilter, setPlaytimeFilter] = useState('all');
+  const [ratingFilter, setRatingFilter] = useState('all');
 
   // Form states - Add Expense
   const [expDesc, setExpDesc] = useState('');
@@ -138,7 +140,35 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   const filteredGames = games.filter(g => {
     const matchSearch = g.title.toLowerCase().includes(search.toLowerCase());
     const matchAcq = acqFilter ? g.acquisition_type === acqFilter : true;
-    return matchSearch && matchAcq;
+    
+    // Playtime Filter
+    let matchPlaytime = true;
+    const hours = parseFloat(g.total_hours || 0);
+    if (playtimeFilter === 'played') {
+      matchPlaytime = hours > 0;
+    } else if (playtimeFilter === 'unplayed') {
+      matchPlaytime = hours === 0;
+    } else if (playtimeFilter === 'less_5') {
+      matchPlaytime = hours > 0 && hours < 5;
+    } else if (playtimeFilter === 'less_10') {
+      matchPlaytime = hours > 0 && hours < 10;
+    } else if (playtimeFilter === 'less_20') {
+      matchPlaytime = hours > 0 && hours < 20;
+    }
+
+    // Rating Filter
+    let matchRating = true;
+    if (ratingFilter === 'default_sliders') {
+      const q = g.qualitative || {};
+      const isDefault = Object.values(q).every(val => val === 5);
+      matchRating = isDefault;
+    } else if (ratingFilter === 'no_matches') {
+      matchRating = parseInt(g.match_count || 0) === 0;
+    } else if (ratingFilter === 'no_score_100') {
+      matchRating = g.score_100 === null || g.score_100 === undefined;
+    }
+
+    return matchSearch && matchAcq && matchPlaytime && matchRating;
   });
 
   const openAddGameModal = () => {
@@ -490,15 +520,41 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
 
         <select
           className="form-input form-select"
-          style={{ width: 'auto', minWidth: '180px' }}
+          style={{ width: 'auto', minWidth: '140px' }}
           value={acqFilter}
           onChange={(e) => setAcqFilter(e.target.value)}
         >
-          <option value="">All Acquisition Types</option>
+          <option value="">All Models</option>
           <option value="retail">Retail Purchase</option>
           <option value="subscription">Subscription Game</option>
           <option value="free">Completely Free</option>
           <option value="f2p">Free to Play</option>
+        </select>
+
+        <select
+          className="form-input form-select"
+          style={{ width: 'auto', minWidth: '140px' }}
+          value={playtimeFilter}
+          onChange={(e) => setPlaytimeFilter(e.target.value)}
+        >
+          <option value="all">All Playtimes</option>
+          <option value="played">Played Games</option>
+          <option value="unplayed">Unplayed Games</option>
+          <option value="less_5">Played &lt; 5 Hours</option>
+          <option value="less_10">Played &lt; 10 Hours</option>
+          <option value="less_20">Played &lt; 20 Hours</option>
+        </select>
+
+        <select
+          className="form-input form-select"
+          style={{ width: 'auto', minWidth: '140px' }}
+          value={ratingFilter}
+          onChange={(e) => setRatingFilter(e.target.value)}
+        >
+          <option value="all">All Ratings</option>
+          <option value="default_sliders">Unrated Sliders</option>
+          <option value="no_matches">0 Arena Matches</option>
+          <option value="no_score_100">No Final Score</option>
         </select>
 
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={openAddGameModal}>
