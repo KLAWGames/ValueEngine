@@ -17,6 +17,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   const [baseCost, setBaseCost] = useState('0');
   const [totalHoursInput, setTotalHoursInput] = useState('0');
   const [unplayed, setUnplayed] = useState(false);
+  const [playMode, setPlayMode] = useState('single');
   const [status, setStatus] = useState('playing');
   const [score100, setScore100] = useState('');
   const [recommend, setRecommend] = useState('');
@@ -147,6 +148,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setBaseCost('0');
     setTotalHoursInput('0');
     setUnplayed(false);
+    setPlayMode('single');
     setStatus('playing');
     setScore100('');
     setRecommend('');
@@ -176,6 +178,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setBaseCost(game.base_cost.toString());
     setTotalHoursInput(game.total_hours.toString());
     setUnplayed(game.unplayed || false);
+    setPlayMode(game.play_mode || 'single');
     setStatus(game.status || 'playing');
     setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
     setRecommend(game.recommend !== null && game.recommend !== undefined ? game.recommend.toString() : '');
@@ -253,7 +256,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           qualitative,
           total_hours: parseFloat(totalHoursInput || 0),
           unplayed,
-          categories: selectedCategories
+          categories: selectedCategories,
+          play_mode: playMode
         })
       });
 
@@ -289,7 +293,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           status,
           score_100: status === 'Finished' && score100 !== '' ? parseInt(score100) : null,
           recommend: status === 'Finished' && recommend !== '' ? (recommend === 'true') : null,
-          categories: selectedCategories
+          categories: selectedCategories,
+          play_mode: playMode
         })
       });
 
@@ -528,6 +533,9 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                     <span className={`acq-badge ${game.acquisition_type}`}>
                       {game.acquisition_type}
                     </span>
+                    <span className="status-badge" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                      {game.play_mode === 'both' ? 'Solo & Multi' : (game.play_mode === 'multi' ? 'Multi' : 'Solo')}
+                    </span>
                   </div>
                 </div>
 
@@ -715,6 +723,19 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                     </div>
                   )
                 )}
+
+                <div className="form-group">
+                  <label className="form-label">Play Mode</label>
+                  <select
+                    className="form-input form-select"
+                    value={playMode}
+                    onChange={(e) => setPlayMode(e.target.value)}
+                  >
+                    <option value="single">Single Player Only</option>
+                    <option value="multi">Multiplayer Only</option>
+                    <option value="both">Both (Single & Multiplayer)</option>
+                  </select>
+                </div>
 
                 {activeModal === 'addGame' && (
                   <div className="form-group">

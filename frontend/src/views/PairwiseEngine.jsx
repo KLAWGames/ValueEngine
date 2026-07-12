@@ -113,6 +113,25 @@ function PairwiseEngine({ token, games, onRefresh }) {
     }
   };
 
+  const handleSkipMultiplayer = async () => {
+    try {
+      await fetch('/api/moods', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          mood_type: 'no_multiplayer'
+        })
+      });
+      fetchNextMatch();
+    } catch (e) {
+      console.error(e);
+      fetchNextMatch();
+    }
+  };
+
   const handleVote = async (winnerId) => {
     if (!match) return;
     setLoading(true);
@@ -357,6 +376,16 @@ function PairwiseEngine({ token, games, onRefresh }) {
             <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#fff', margin: 0 }}>
               {match?.prompt?.text || 'Which experience do you prefer overall?'}
             </h2>
+            {match?.prompt?.id === 'social' && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleSkipMultiplayer}
+                style={{ marginTop: '14px', fontSize: '0.75rem', padding: '6px 12px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                I don't feel like playing multiplayer games right now
+              </button>
+            )}
           </div>
 
           <div className="pairwise-arena">

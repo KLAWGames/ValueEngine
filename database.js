@@ -139,6 +139,15 @@ const initDb = async () => {
     await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS social INT CHECK (social BETWEEN 0 AND 10);");
     await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS stress_intensity INT CHECK (stress_intensity BETWEEN 0 AND 10);");
     await pool.query("ALTER TABLE pairwise_matches ADD COLUMN IF NOT EXISTS prompt_type VARCHAR(50) DEFAULT 'general';");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS play_mode VARCHAR(50) DEFAULT 'single';");
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS player_moods (
+        mood_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+        mood_type VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     // 3. Create categories reference table
     await pool.query(`

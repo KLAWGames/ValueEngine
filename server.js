@@ -423,7 +423,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/games', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, categories } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, categories, play_mode } = req.body;
   
   if (!title || !acquisition_type) {
     return res.status(400).json({ error: 'Title and acquisition type are required' });
@@ -435,14 +435,15 @@ app.post('/api/games', authenticateToken, async (req, res) => {
     const finalSubId = acquisition_type === 'subscription' ? subscription_id : null;
     const finalUnplayed = unplayed === true || unplayed === 'true';
     const initialStatus = finalUnplayed ? 'unplayed' : 'playing';
+    const playMode = play_mode || 'single';
 
     const initialHours = total_hours !== undefined ? parseFloat(total_hours) : 0.00;
 
     // 1. Insert Game
     await db.query(`
-      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status, overall_hours)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus, initialHours]);
+      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status, overall_hours, play_mode)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus, initialHours, playMode]);
 
     // 2. Insert Qualitative Profile (default 5 or user custom, expanded to 10 pillars)
     const q = qualitative || {};
@@ -502,7 +503,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/games/:id', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories, play_mode } = req.body;
   const { id } = req.params;
 
   try {
@@ -518,6 +519,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
     const updatedBaseCost = (updatedAcq === 'free' || updatedAcq === 'f2p') ? 0.00 : parseFloat(base_cost !== undefined ? base_cost : game.base_cost);
     
     const finalUnplayed = unplayed !== undefined ? (unplayed === true || unplayed === 'true') : game.unplayed;
+    const updatedPlayMode = play_mode || game.play_mode || 'single';
     
     // Status Resolution: Default status to playing if unplayed is turned off, and unplayed if toggled on
     let finalStatus = status || game.status || 'playing';
@@ -549,8 +551,8 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       UPDATE games 
       SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4,
           unplayed = $5, status = $6, score_100 = $7, recommend = $8, elo_rating = $9,
-          overall_hours = $10
-      WHERE game_id = $11 AND user_id = $12
+          overall_hours = $10, play_mode = $11
+      WHERE game_id = $12 AND user_id = $13
     `, [
       updatedTitle,
       updatedAcq,
@@ -562,6 +564,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       recommend !== undefined ? (recommend === null || recommend === '' ? null : (recommend === true || recommend === 'true')) : game.recommend,
       newElo,
       updatedOverallHours,
+      updatedPlayMode,
       id,
       req.user.userId
     ]);
@@ -808,14 +811,37 @@ const COMPARISON_PROMPTS = [
 
 app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
   try {
-    // 1. Fetch user games that have unplayed = false AND overall_hours > 0
-    const gamesRes = await db.query(`
-      SELECT game_id, title, elo_rating, match_count 
+    let randomPrompt = COMPARISON_PROMPTS[Math.floor(Math.random() * COMPARISON_PROMPTS.length)];
+    let modeFilter = '';
+
+    if (randomPrompt.id === 'social') {
+      modeFilter = "AND play_mode IN ('multi', 'both')";
+    } else if (randomPrompt.id === 'solo') {
+      modeFilter = "AND play_mode IN ('single', 'both')";
+    }
+
+    let gamesRes = await db.query(`
+      SELECT game_id, title, elo_rating, match_count, play_mode 
       FROM games 
       WHERE user_id = $1 
         AND unplayed = FALSE
         AND overall_hours > 0
+        ${modeFilter}
     `, [req.user.userId]);
+
+    // Fallback: If less than 2 games match this specific single/multiplayer criteria,
+    // fall back to a general comparison query with all played games.
+    if (gamesRes.rows.length < 2 && modeFilter !== '') {
+      randomPrompt = COMPARISON_PROMPTS.find(p => p.id === 'general');
+      gamesRes = await db.query(`
+        SELECT game_id, title, elo_rating, match_count, play_mode 
+        FROM games 
+        WHERE user_id = $1 
+          AND unplayed = FALSE
+          AND overall_hours > 0
+      `, [req.user.userId]);
+    }
+
     const games = gamesRes.rows;
     
     if (games.length < 2) {
@@ -846,8 +872,6 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
     if (!gameB) {
       gameB = games.find(g => g.game_id !== gameA.game_id);
     }
-
-    const randomPrompt = COMPARISON_PROMPTS[Math.floor(Math.random() * COMPARISON_PROMPTS.length)];
 
     res.json({ gameA, gameB, prompt: randomPrompt });
   } catch (err) {
@@ -1054,6 +1078,26 @@ app.post('/api/pairwise/sort', authenticateToken, async (req, res) => {
     res.json({ success: true, updatedRatings });
   } catch (err) {
     console.error('Card sorting record error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/moods', authenticateToken, async (req, res) => {
+  const { mood_type } = req.body;
+  if (!mood_type) {
+    return res.status(400).json({ error: 'mood_type is required' });
+  }
+
+  try {
+    const moodId = crypto.randomUUID();
+    await db.query(`
+      INSERT INTO player_moods (mood_id, user_id, mood_type)
+      VALUES ($1, $2, $3)
+    `, [moodId, req.user.userId, mood_type]);
+
+    res.status(201).json({ success: true, mood_id: moodId, mood_type });
+  } catch (err) {
+    console.error('Record player mood error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
