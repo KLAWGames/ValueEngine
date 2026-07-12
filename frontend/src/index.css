@@ -1011,3 +1011,166 @@ h1, h2, h3, h4, h5, h6 {
   padding: 32px 16px;
   font-style: italic;
 }
+
+/* --- MOBILE RESPONSIVENESS OVERRIDES --- */
+@media (max-width: 768px) {
+  /* Body bottom padding to prevent content overlap with fixed bottom navigation bar */
+  .app-container {
+    padding-bottom: 84px;
+  }
+
+  .main-content {
+    padding: 16px 12px;
+  }
+
+  /* Header adjustments */
+  .navbar {
+    padding: 12px 16px;
+  }
+  
+  .navbar span {
+    font-size: 0.85rem;
+  }
+
+  /* Hide email indicator to avoid header clutter */
+  .navbar div:nth-last-child(1) span {
+    display: none;
+  }
+
+  /* Fixed Bottom Tab Bar Navigation */
+  .navbar .nav-links {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(3, 7, 18, 0.95);
+    border-top: 1px solid var(--border-color);
+    padding: 10px 8px;
+    display: flex;
+    justify-content: space-around;
+    gap: 0;
+    z-index: 999;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .navbar .nav-item {
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.65rem;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 6px 0;
+    background: none !important;
+    border: none !important;
+    border-radius: 0;
+    transition: color var(--transition-fast);
+  }
+
+  .navbar .nav-item.active {
+    color: var(--primary);
+    background: none;
+    border: none;
+  }
+  
+  .navbar .nav-item:hover {
+    color: var(--text-primary);
+    background: none;
+  }
+
+  .navbar .nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Auth Card Padding */
+  .auth-card {
+    padding: 24px 20px;
+    margin: 8px auto;
+  }
+  
+  .auth-header {
+    margin-bottom: 24px;
+  }
+
+  .auth-header h1 {
+    font-size: 1.8rem;
+  }
+
+  /* General Grid Adjustments */
+  .dashboard-grid {
+    gap: 16px;
+  }
+  
+  .split-grid {
+    gap: 20px;
+  }
+
+  /* Game ledger list cards */
+  .game-grid {
+    gap: 16px;
+  }
+
+  .game-card {
+    padding: 16px;
+    min-height: auto;
+  }
+
+  /* Hide card action text, display clean icons on small screens */
+  .card-action-btn span {
+    display: none;
+  }
+  
+  .card-action-btn {
+    padding: 8px;
+  }
+
+  /* Modals */
+  .modal-backdrop {
+    padding: 8px;
+  }
+
+  .modal-content {
+    padding: 20px 16px;
+    max-height: 95vh;
+  }
+
+  .modal-title-row {
+    margin-bottom: 16px;
+  }
+
+  /* Pairwise Joy Arena stacking */
+  .pairwise-arena {
+    gap: 16px;
+    margin: 16px 0;
+    flex-direction: column;
+  }
+
+  .voter-card {
+    min-width: 100%;
+    padding: 28px 20px;
+    gap: 16px;
+  }
+
+  .voter-game-title {
+    font-size: 1.4rem;
+  }
+
+  .versus-divider {
+    margin: 8px 0;
+  }
+
+  .vs-circle {
+    width: 48px;
+    height: 48px;
+    font-size: 1rem;
+  }
+
+  /* Sliders deck */
+  .slider-info {
+    font-size: 0.8rem;
+  }
+}
+
