@@ -389,7 +389,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/games', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours } = req.body;
   
   if (!title || !acquisition_type) {
     return res.status(400).json({ error: 'Title and acquisition type are required' });
@@ -423,6 +423,15 @@ app.post('/api/games', authenticateToken, async (req, res) => {
       parseInt(q.pacing ?? 5)
     ]);
 
+    if (total_hours !== undefined && parseFloat(total_hours) > 0) {
+      const logId = crypto.randomUUID();
+      const today = new Date().toISOString().substring(0, 10);
+      await db.query(`
+        INSERT INTO play_logs (log_id, game_id, hours_played, logged_date)
+        VALUES ($1, $2, $3, $4)
+      `, [logId, gameId, parseFloat(total_hours), today]);
+    }
+
     res.status(201).json({
       game_id: gameId,
       title,
@@ -439,7 +448,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/games/:id', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours } = req.body;
   const { id } = req.params;
 
   try {
@@ -475,6 +484,47 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
         parseInt(qualitative.pacing ?? 5),
         id
       ]);
+    }
+
+    if (total_hours !== undefined) {
+      const targetHours = parseFloat(total_hours);
+      if (!isNaN(targetHours) && targetHours >= 0) {
+        const sumRes = await db.query('SELECT SUM(hours_played) as total FROM play_logs WHERE game_id = $1', [id]);
+        const currentHours = sumRes.rows[0].total ? parseFloat(sumRes.rows[0].total) : 0.00;
+        
+        const diff = targetHours - currentHours;
+        if (Math.abs(diff) > 0.01) {
+          if (diff > 0) {
+            const logId = crypto.randomUUID();
+            const today = new Date().toISOString().substring(0, 10);
+            await db.query(`
+              INSERT INTO play_logs (log_id, game_id, hours_played, logged_date)
+              VALUES ($1, $2, $3, $4)
+            `, [logId, id, diff, today]);
+          } else {
+            let amountToSubtract = Math.abs(diff);
+            const logsRes = await db.query(`
+              SELECT log_id, hours_played 
+              FROM play_logs 
+              WHERE game_id = $1 
+              ORDER BY logged_date DESC, log_id DESC
+            `, [id]);
+            
+            for (const log of logsRes.rows) {
+              const logHours = parseFloat(log.hours_played);
+              if (logHours <= amountToSubtract) {
+                await db.query('DELETE FROM play_logs WHERE log_id = $1', [log.log_id]);
+                amountToSubtract -= logHours;
+              } else {
+                const newHours = logHours - amountToSubtract;
+                await db.query('UPDATE play_logs SET hours_played = $1 WHERE log_id = $2', [newHours, log.log_id]);
+                amountToSubtract = 0;
+                break;
+              }
+            }
+          }
+        }
+      }
     }
 
     res.json({ success: true, message: 'Game updated successfully' });

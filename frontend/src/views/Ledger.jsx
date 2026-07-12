@@ -15,6 +15,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   const [acqType, setAcqType] = useState('retail');
   const [subId, setSubId] = useState('');
   const [baseCost, setBaseCost] = useState('0');
+  const [totalHoursInput, setTotalHoursInput] = useState('0');
   const [qualitative, setQualitative] = useState({
     story: 5,
     multiplayer: 5,
@@ -47,6 +48,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setAcqType('retail');
     setSubId('');
     setBaseCost('0');
+    setTotalHoursInput('0');
     setQualitative({
       story: 5,
       multiplayer: 5,
@@ -65,6 +67,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setAcqType(game.acquisition_type);
     setSubId(game.subscription_id || '');
     setBaseCost(game.base_cost.toString());
+    setTotalHoursInput(game.total_hours.toString());
     setQualitative(game.qualitative || {
       story: 5,
       multiplayer: 5,
@@ -128,7 +131,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           acquisition_type: acqType,
           subscription_id: acqType === 'subscription' ? subId : null,
           base_cost: acqType === 'subscription' || acqType === 'free' || acqType === 'f2p' ? 0 : parseFloat(baseCost),
-          qualitative
+          qualitative,
+          total_hours: parseFloat(totalHoursInput || 0)
         })
       });
 
@@ -158,7 +162,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           acquisition_type: acqType,
           subscription_id: acqType === 'subscription' ? subId : null,
           base_cost: acqType === 'subscription' || acqType === 'free' || acqType === 'f2p' ? 0 : parseFloat(baseCost),
-          qualitative
+          qualitative,
+          total_hours: parseFloat(totalHoursInput || 0)
         })
       });
 
@@ -506,6 +511,19 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                     </div>
                   )
                 )}
+
+                <div className="form-group">
+                  <label className="form-label">Total Playtime (Hours)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    className="form-input"
+                    value={totalHoursInput}
+                    onChange={(e) => setTotalHoursInput(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               {/* Qualitative Attribute Profiling Slider Deck */}
