@@ -4,7 +4,16 @@ const path = require('path');
 
 console.log('--- Starting Production Build ---');
 
-// 1. Build frontend React app
+// 1. Install frontend React dependencies
+console.log('Installing React frontend dependencies...');
+try {
+  execSync('npm install', { cwd: path.join(__dirname, 'frontend'), stdio: 'inherit' });
+} catch (err) {
+  console.error('Error installing frontend dependencies:', err.message);
+  process.exit(1);
+}
+
+// 2. Build frontend React app
 console.log('Building React frontend...');
 try {
   execSync('npm run build', { cwd: path.join(__dirname, 'frontend'), stdio: 'inherit' });
