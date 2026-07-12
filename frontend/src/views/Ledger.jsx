@@ -125,6 +125,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   const [logHours, setLogHours] = useState('');
   const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
   const [historyLogs, setHistoryLogs] = useState([]);
+  const [addToTotal, setAddToTotal] = useState(true);
+  const [overallHoursInput, setOverallHoursInput] = useState('0');
 
   // Form states - Add Expense
   const [expDesc, setExpDesc] = useState('');
@@ -199,6 +201,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setSelectedGame(game);
     setLogHours('');
     setLogDate(new Date().toISOString().split('T')[0]);
+    setAddToTotal(true);
+    setOverallHoursInput(game.total_hours.toString());
     setActiveModal('logHours');
     
     // Fetch log history
@@ -332,17 +336,54 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
         },
         body: JSON.stringify({
           hours_played: parseFloat(logHours),
-          logged_date: logDate
+          logged_date: logDate,
+          addToTotal
         })
       });
 
       if (res.ok) {
         onRefresh();
-        // Refresh logs list in modal
-        openLogHoursModal(selectedGame);
+        const addedHours = parseFloat(logHours);
+        const updatedGame = {
+          ...selectedGame,
+          total_hours: addToTotal ? (selectedGame.total_hours + addedHours) : selectedGame.total_hours
+        };
+        setSelectedGame(updatedGame);
+        openLogHoursModal(updatedGame);
       } else {
         const data = await res.json();
         alert(data.error || 'Failed to log play session');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdateOverallHours = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/games/${selectedGame.game_id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          total_hours: parseFloat(overallHoursInput || 0)
+        })
+      });
+
+      if (res.ok) {
+        onRefresh();
+        const updatedGame = {
+          ...selectedGame,
+          total_hours: parseFloat(overallHoursInput || 0)
+        };
+        setSelectedGame(updatedGame);
+        alert('Overall playtime updated successfully!');
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to update overall hours');
       }
     } catch (e) {
       console.error(e);
@@ -675,18 +716,20 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                   )
                 )}
 
-                <div className="form-group">
-                  <label className="form-label">Total Playtime (Hours)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    className="form-input"
-                    value={totalHoursInput}
-                    onChange={(e) => setTotalHoursInput(e.target.value)}
-                    required
-                  />
-                </div>
+                {activeModal === 'addGame' && (
+                  <div className="form-group">
+                    <label className="form-label">Total Playtime (Hours)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      className="form-input"
+                      value={totalHoursInput}
+                      onChange={(e) => setTotalHoursInput(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Unplayed Toggle (only in add/edit modals when total playtime is 0) */}
@@ -919,8 +962,12 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
               </button>
             </div>
 
-            <form onSubmit={handleLogHours}>
-              <div className="form-grid">
+            {/* Option A: Log Play Session */}
+            <form onSubmit={handleLogHours} style={{ marginBottom: '24px', borderBottom: '1px solid var(--border-color)', paddingBottom: '24px' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '12px', color: 'var(--primary)' }}>
+                Option A: Log Play Session
+              </h3>
+              <div className="form-grid" style={{ marginBottom: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">Play Duration (Hours)</label>
                   <input
@@ -946,9 +993,52 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary">
-                Add Play Session Log
+              {/* Add to total checkbox */}
+              <div style={{ marginBottom: '16px' }}>
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={addToTotal}
+                    onChange={(e) => setAddToTotal(e.target.checked)}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>
+                    Add this to overall hour total (current: {selectedGame?.total_hours.toFixed(1)}h)
+                  </span>
+                </label>
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                Log Play Session
               </button>
+            </form>
+
+            {/* Option B: Direct Playtime Overwrite */}
+            <form onSubmit={handleUpdateOverallHours} style={{ marginBottom: '24px', borderBottom: '1px solid var(--border-color)', paddingBottom: '24px' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '12px', color: 'var(--secondary)' }}>
+                Option B: Update Overall Playtime (Manual Overwrite)
+              </h3>
+              <div className="form-grid" style={{ marginBottom: '12px', alignItems: 'end' }}>
+                <div className="form-group">
+                  <label className="form-label">Overall Playtime (Hours)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    className="form-input"
+                    placeholder="e.g. 45"
+                    value={overallHoursInput}
+                    onChange={(e) => setOverallHoursInput(e.target.value)}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn btn-secondary" style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+                  Save Total Hours
+                </button>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Directly sets the game's total hours. This keeps all your logged play history intact.
+              </p>
             </form>
 
             <div style={{ marginTop: '28px' }}>

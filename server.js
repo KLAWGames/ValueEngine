@@ -394,7 +394,9 @@ app.get('/api/games', authenticateToken, async (req, res) => {
 
       const baseCost = game.acquisition_type === 'free' || game.acquisition_type === 'f2p' ? 0.00 : parseFloat(game.base_cost);
       const totalCost = baseCost + addonCost + amortizedSubscriptionCost;
-      const cph = totalHours > 0 ? (totalCost / totalHours) : null;
+      
+      const overallHours = parseFloat(game.overall_hours || 0);
+      const cph = overallHours > 0 ? (totalCost / overallHours) : null;
 
       return {
         ...game,
@@ -402,7 +404,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         addon_cost: addonCost,
         amortized_subscription_cost: amortizedSubscriptionCost,
         total_cost: totalCost,
-        total_hours: totalHours,
+        total_hours: overallHours,
         cph,
         qualitative: qualitativeObj,
         categories
@@ -434,11 +436,13 @@ app.post('/api/games', authenticateToken, async (req, res) => {
     const finalUnplayed = unplayed === true || unplayed === 'true';
     const initialStatus = finalUnplayed ? 'unplayed' : 'playing';
 
+    const initialHours = total_hours !== undefined ? parseFloat(total_hours) : 0.00;
+
     // 1. Insert Game
     await db.query(`
-      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus]);
+      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status, overall_hours)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus, initialHours]);
 
     // 2. Insert Qualitative Profile (default 5 or user custom, expanded to 10 pillars)
     const q = qualitative || {};
@@ -539,11 +543,14 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       newElo += 50; // Revert DNF
     }
 
+    const updatedOverallHours = total_hours !== undefined ? parseFloat(total_hours) : game.overall_hours;
+
     await db.query(`
       UPDATE games 
       SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4,
-          unplayed = $5, status = $6, score_100 = $7, recommend = $8, elo_rating = $9
-      WHERE game_id = $10 AND user_id = $11
+          unplayed = $5, status = $6, score_100 = $7, recommend = $8, elo_rating = $9,
+          overall_hours = $10
+      WHERE game_id = $11 AND user_id = $12
     `, [
       updatedTitle,
       updatedAcq,
@@ -554,6 +561,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       score_100 !== undefined ? (score_100 === null || score_100 === '' ? null : parseInt(score_100)) : game.score_100,
       recommend !== undefined ? (recommend === null || recommend === '' ? null : (recommend === true || recommend === 'true')) : game.recommend,
       newElo,
+      updatedOverallHours,
       id,
       req.user.userId
     ]);
@@ -589,47 +597,6 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
           const catRes = await db.query('SELECT category_id FROM categories WHERE name = $1', [cleanCat]);
           const catId = catRes.rows[0].category_id;
           await db.query('INSERT INTO game_categories (game_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, catId]);
-        }
-      }
-    }
-
-    if (total_hours !== undefined) {
-      const targetHours = parseFloat(total_hours);
-      if (!isNaN(targetHours) && targetHours >= 0) {
-        const sumRes = await db.query('SELECT SUM(hours_played) as total FROM play_logs WHERE game_id = $1', [id]);
-        const currentHours = sumRes.rows[0].total ? parseFloat(sumRes.rows[0].total) : 0.00;
-        
-        const diff = targetHours - currentHours;
-        if (Math.abs(diff) > 0.01) {
-          if (diff > 0) {
-            const logId = crypto.randomUUID();
-            const today = new Date().toISOString().substring(0, 10);
-            await db.query(`
-              INSERT INTO play_logs (log_id, game_id, hours_played, logged_date)
-              VALUES ($1, $2, $3, $4)
-            `, [logId, id, diff, today]);
-          } else {
-            let amountToSubtract = Math.abs(diff);
-            const logsRes = await db.query(`
-              SELECT log_id, hours_played 
-              FROM play_logs 
-              WHERE game_id = $1 
-              ORDER BY logged_date DESC, log_id DESC
-            `, [id]);
-            
-            for (const log of logsRes.rows) {
-              const logHours = parseFloat(log.hours_played);
-              if (logHours <= amountToSubtract) {
-                await db.query('DELETE FROM play_logs WHERE log_id = $1', [log.log_id]);
-                amountToSubtract -= logHours;
-              } else {
-                const newHours = logHours - amountToSubtract;
-                await db.query('UPDATE play_logs SET hours_played = $1 WHERE log_id = $2', [newHours, log.log_id]);
-                amountToSubtract = 0;
-                break;
-              }
-            }
-          }
         }
       }
     }
@@ -755,7 +722,7 @@ app.get('/api/games/:id/logs', authenticateToken, async (req, res) => {
 
 app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { hours_played, logged_date } = req.body;
+  const { hours_played, logged_date, addToTotal } = req.body;
 
   if (hours_played === undefined || !logged_date) {
     return res.status(400).json({ error: 'Hours played and log date are required' });
@@ -774,16 +741,25 @@ app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
     }
 
     const formattedDate = dateObj.toISOString().substring(0, 10); // Store as YYYY-MM-DD
+    const hours = parseFloat(hours_played);
 
     await db.query(`
       INSERT INTO play_logs (log_id, game_id, hours_played, logged_date)
       VALUES ($1, $2, $3, $4)
-    `, [logId, id, parseFloat(hours_played), formattedDate]);
+    `, [logId, id, hours, formattedDate]);
+
+    if (addToTotal === true || addToTotal === 'true') {
+      await db.query(`
+        UPDATE games 
+        SET overall_hours = overall_hours + $1
+        WHERE game_id = $2
+      `, [hours, id]);
+    }
 
     res.status(201).json({
       log_id: logId,
       game_id: id,
-      hours_played: parseFloat(hours_played),
+      hours_played: hours,
       logged_date: formattedDate
     });
   } catch (err) {

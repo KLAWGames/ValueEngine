@@ -127,6 +127,12 @@ const initDb = async () => {
     await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS score_100 INT CHECK (score_100 BETWEEN 0 AND 100) NULL;");
     await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS recommend BOOLEAN NULL;");
     await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS unplayed BOOLEAN DEFAULT FALSE;");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS overall_hours NUMERIC(6, 2) DEFAULT 0.00;");
+    await pool.query(`
+      UPDATE games g 
+      SET overall_hours = COALESCE((SELECT SUM(hours_played) FROM play_logs WHERE game_id = g.game_id), 0.00)
+      WHERE overall_hours IS NULL OR overall_hours = 0.00;
+    `);
 
     // 2. Add new split qualitative pillars to qualitative_profiles
     await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS engagement INT CHECK (engagement BETWEEN 0 AND 10);");
