@@ -38,17 +38,17 @@ const authenticateToken = (req, res, next) => {
 
 // --- AUTHENTICATION ROUTES ---
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
   try {
+    const formattedEmail = email.toLowerCase().trim();
     // Check if user exists
-    const checkStmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    const existingUser = checkStmt.get(email.toLowerCase().trim());
-    if (existingUser) {
+    const checkRes = await db.query('SELECT * FROM users WHERE email = $1', [formattedEmail]);
+    if (checkRes.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
@@ -56,13 +56,15 @@ app.post('/api/auth/register', (req, res) => {
     const salt = bcrypt.genSaltSync(10);
     const passwordHash = bcrypt.hashSync(password, salt);
 
-    const insertStmt = db.prepare('INSERT INTO users (user_id, email, password_hash) VALUES (?, ?, ?)');
-    insertStmt.run(userId, email.toLowerCase().trim(), passwordHash);
+    await db.query(
+      'INSERT INTO users (user_id, email, password_hash) VALUES ($1, $2, $3)', 
+      [userId, formattedEmail, passwordHash]
+    );
 
     const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({
       token,
-      user: { userId, email: email.toLowerCase().trim() }
+      user: { userId, email: formattedEmail }
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -70,14 +72,17 @@ app.post('/api/auth/register', (req, res) => {
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
   try {
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const formattedEmail = email.toLowerCase().trim();
+    const checkRes = await db.query('SELECT * FROM users WHERE email = $1', [formattedEmail]);
+    const user = checkRes.rows[0];
+
     if (!user) {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
@@ -98,9 +103,10 @@ app.post('/api/auth/login', (req, res) => {
   }
 });
 
-app.get('/api/auth/me', authenticateToken, (req, res) => {
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const user = db.prepare('SELECT user_id, email, created_at FROM users WHERE user_id = ?').get(req.user.userId);
+    const checkRes = await db.query('SELECT user_id, email, created_at FROM users WHERE user_id = $1', [req.user.userId]);
+    const user = checkRes.rows[0];
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -113,17 +119,17 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 
 // --- SUBSCRIPTIONS ROUTES ---
 
-app.get('/api/subscriptions', authenticateToken, (req, res) => {
+app.get('/api/subscriptions', authenticateToken, async (req, res) => {
   try {
-    const subs = db.prepare('SELECT * FROM subscriptions WHERE user_id = ?').all(req.user.userId);
-    res.json(subs);
+    const queryRes = await db.query('SELECT * FROM subscriptions WHERE user_id = $1', [req.user.userId]);
+    res.json(queryRes.rows);
   } catch (err) {
     console.error('Get subscriptions error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/subscriptions', authenticateToken, (req, res) => {
+app.post('/api/subscriptions', authenticateToken, async (req, res) => {
   const { name, monthly_cost, is_active } = req.body;
   if (!name || monthly_cost === undefined) {
     return res.status(400).json({ error: 'Name and monthly cost are required' });
@@ -131,12 +137,12 @@ app.post('/api/subscriptions', authenticateToken, (req, res) => {
 
   try {
     const subscriptionId = crypto.randomUUID();
-    const isActiveVal = is_active === false ? 0 : 1;
-    const stmt = db.prepare(`
+    const isActiveVal = is_active !== false;
+    
+    await db.query(`
       INSERT INTO subscriptions (subscription_id, user_id, name, monthly_cost, is_active)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(subscriptionId, req.user.userId, name, parseFloat(monthly_cost), isActiveVal);
+      VALUES ($1, $2, $3, $4, $5)
+    `, [subscriptionId, req.user.userId, name, parseFloat(monthly_cost), isActiveVal]);
     
     res.status(201).json({
       subscription_id: subscriptionId,
@@ -151,26 +157,26 @@ app.post('/api/subscriptions', authenticateToken, (req, res) => {
   }
 });
 
-app.put('/api/subscriptions/:id', authenticateToken, (req, res) => {
+app.put('/api/subscriptions/:id', authenticateToken, async (req, res) => {
   const { name, monthly_cost, is_active } = req.body;
   const { id } = req.params;
 
   try {
-    const sub = db.prepare('SELECT * FROM subscriptions WHERE subscription_id = ? AND user_id = ?').get(id, req.user.userId);
+    const subRes = await db.query('SELECT * FROM subscriptions WHERE subscription_id = $1 AND user_id = $2', [id, req.user.userId]);
+    const sub = subRes.rows[0];
     if (!sub) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
     const updatedName = name || sub.name;
-    const updatedCost = monthly_cost !== undefined ? parseFloat(monthly_cost) : sub.monthly_cost;
-    const updatedActive = is_active !== undefined ? (is_active ? 1 : 0) : sub.is_active;
+    const updatedCost = monthly_cost !== undefined ? parseFloat(monthly_cost) : parseFloat(sub.monthly_cost);
+    const updatedActive = is_active !== undefined ? !!is_active : sub.is_active;
 
-    const stmt = db.prepare(`
+    await db.query(`
       UPDATE subscriptions 
-      SET name = ?, monthly_cost = ?, is_active = ?
-      WHERE subscription_id = ? AND user_id = ?
-    `);
-    stmt.run(updatedName, updatedCost, updatedActive, id, req.user.userId);
+      SET name = $1, monthly_cost = $2, is_active = $3
+      WHERE subscription_id = $4 AND user_id = $5
+    `, [updatedName, updatedCost, updatedActive, id, req.user.userId]);
 
     res.json({
       subscription_id: id,
@@ -184,12 +190,11 @@ app.put('/api/subscriptions/:id', authenticateToken, (req, res) => {
   }
 });
 
-app.delete('/api/subscriptions/:id', authenticateToken, (req, res) => {
+app.delete('/api/subscriptions/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const stmt = db.prepare('DELETE FROM subscriptions WHERE subscription_id = ? AND user_id = ?');
-    const result = stmt.run(id, req.user.userId);
-    if (result.changes === 0) {
+    const deleteRes = await db.query('DELETE FROM subscriptions WHERE subscription_id = $1 AND user_id = $2', [id, req.user.userId]);
+    if (deleteRes.rowCount === 0) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
     res.json({ success: true, message: 'Subscription deleted' });
@@ -200,23 +205,24 @@ app.delete('/api/subscriptions/:id', authenticateToken, (req, res) => {
 });
 
 // --- AMORTIZATION ENGINE HELPER ---
-const getSubscriptionAmortization = (userId) => {
-  const subs = db.prepare('SELECT * FROM subscriptions WHERE user_id = ?').all(userId);
+const getSubscriptionAmortization = async (userId) => {
+  const resSubs = await db.query('SELECT * FROM subscriptions WHERE user_id = $1', [userId]);
+  const subs = resSubs.rows;
   const gameAmortized = {};
   let totalWaste = 0;
-  const wasteBreakdown = []; // detail of wasted subs for dashboard
+  const wasteBreakdown = [];
 
   for (const sub of subs) {
-    // Find all games linked to this subscription
-    const games = db.prepare('SELECT game_id FROM games WHERE user_id = ? AND subscription_id = ?').all(userId, sub.subscription_id);
+    const resGames = await db.query('SELECT game_id FROM games WHERE user_id = $1 AND subscription_id = $2', [userId, sub.subscription_id]);
+    const games = resGames.rows;
     
     if (games.length === 0) {
-      // If no games are registered under this subscription, then if active, current month is waste
-      if (sub.is_active === 1) {
-        totalWaste += sub.monthly_cost;
+      if (sub.is_active) {
+        const subCost = parseFloat(sub.monthly_cost);
+        totalWaste += subCost;
         wasteBreakdown.push({
           subscription_name: sub.name,
-          cost: sub.monthly_cost,
+          cost: subCost,
           reason: 'No games associated'
         });
       }
@@ -224,15 +230,15 @@ const getSubscriptionAmortization = (userId) => {
     }
 
     const gameIds = games.map(g => g.game_id);
-    const placeholders = gameIds.map(() => '?').join(',');
 
     // Fetch play logs for these games
-    const logs = db.prepare(`
+    const resLogs = await db.query(`
       SELECT game_id, hours_played, logged_date 
       FROM play_logs 
-      WHERE game_id IN (${placeholders})
+      WHERE game_id = ANY($1::uuid[])
       ORDER BY logged_date ASC
-    `).all(...gameIds);
+    `, [gameIds]);
+    const logs = resLogs.rows;
 
     // Group logs by month ("YYYY-MM")
     const logsByMonth = {};
@@ -244,19 +250,24 @@ const getSubscriptionAmortization = (userId) => {
       latestDate = new Date(logs[logs.length - 1].logged_date);
       
       logs.forEach(log => {
-        const monthStr = log.logged_date.substring(0, 7); // "YYYY-MM"
+        const dateStr = new Date(log.logged_date).toISOString().substring(0, 10);
+        const monthStr = dateStr.substring(0, 7); // "YYYY-MM"
         if (!logsByMonth[monthStr]) {
           logsByMonth[monthStr] = [];
         }
-        logsByMonth[monthStr].push(log);
+        logsByMonth[monthStr].push({
+          ...log,
+          hours_played: parseFloat(log.hours_played),
+          logged_date: dateStr
+        });
       });
     } else {
-      // No logs ever recorded
-      if (sub.is_active === 1) {
-        totalWaste += sub.monthly_cost;
+      if (sub.is_active) {
+        const subCost = parseFloat(sub.monthly_cost);
+        totalWaste += subCost;
         wasteBreakdown.push({
           subscription_name: sub.name,
-          cost: sub.monthly_cost,
+          cost: subCost,
           reason: 'No play hours logged yet'
         });
       }
@@ -268,8 +279,8 @@ const getSubscriptionAmortization = (userId) => {
     const startYear = earliestDate.getFullYear();
     const startMonth = earliestDate.getMonth();
 
-    const endYear = sub.is_active === 1 ? new Date().getFullYear() : latestDate.getFullYear();
-    const endMonth = sub.is_active === 1 ? new Date().getMonth() : latestDate.getMonth();
+    const endYear = sub.is_active ? new Date().getFullYear() : latestDate.getFullYear();
+    const endMonth = sub.is_active ? new Date().getMonth() : latestDate.getMonth();
 
     const billingMonths = [];
     let currYear = startYear;
@@ -289,19 +300,19 @@ const getSubscriptionAmortization = (userId) => {
     billingMonths.forEach(mStr => {
       const monthLogs = logsByMonth[mStr] || [];
       const totalHoursInMonth = monthLogs.reduce((sum, l) => sum + l.hours_played, 0);
+      const subCost = parseFloat(sub.monthly_cost);
 
       if (totalHoursInMonth > 0) {
         monthLogs.forEach(log => {
           const ratio = log.hours_played / totalHoursInMonth;
-          const allocatedCost = sub.monthly_cost * ratio;
+          const allocatedCost = subCost * ratio;
           gameAmortized[log.game_id] = (gameAmortized[log.game_id] || 0) + allocatedCost;
         });
       } else {
-        // Active subscription month with 0 hours logged: waste!
-        totalWaste += sub.monthly_cost;
+        totalWaste += subCost;
         wasteBreakdown.push({
           subscription_name: sub.name,
-          cost: sub.monthly_cost,
+          cost: subCost,
           month: mStr,
           reason: '0 play hours in this month'
         });
@@ -314,34 +325,34 @@ const getSubscriptionAmortization = (userId) => {
 
 // --- GAMES ROUTES ---
 
-app.get('/api/games', authenticateToken, (req, res) => {
+app.get('/api/games', authenticateToken, async (req, res) => {
   try {
-    const games = db.prepare(`
+    const resGames = await db.query(`
       SELECT g.*, s.name as subscription_name 
       FROM games g 
       LEFT JOIN subscriptions s ON g.subscription_id = s.subscription_id
-      WHERE g.user_id = ?
-    `).all(req.user.userId);
+      WHERE g.user_id = $1
+    `, [req.user.userId]);
+    const games = resGames.rows;
 
-    const { gameAmortized, totalWaste, wasteBreakdown } = getSubscriptionAmortization(req.user.userId);
+    const { gameAmortized, totalWaste, wasteBreakdown } = await getSubscriptionAmortization(req.user.userId);
 
-    // Calculate aggregated statistics for each game
-    const gamesWithMetrics = games.map(game => {
+    // Calculate aggregated statistics for each game in parallel
+    const gamesWithMetrics = await Promise.all(games.map(async (game) => {
       // 1. Sum up DLC/microtransactions
-      const purchases = db.prepare('SELECT SUM(cost) as total FROM game_purchases WHERE game_id = ?').get(game.game_id);
-      const addonCost = purchases && purchases.total ? parseFloat(purchases.total) : 0.00;
+      const purchasesRes = await db.query('SELECT SUM(cost) as total FROM game_purchases WHERE game_id = $1', [game.game_id]);
+      const addonCost = purchasesRes.rows[0].total ? parseFloat(purchasesRes.rows[0].total) : 0.00;
 
       // 2. Sum up total hours played
-      const logs = db.prepare('SELECT SUM(hours_played) as total FROM play_logs WHERE game_id = ?').get(game.game_id);
-      const totalHours = logs && logs.total ? parseFloat(logs.total) : 0.00;
+      const logsRes = await db.query('SELECT SUM(hours_played) as total FROM play_logs WHERE game_id = $1', [game.game_id]);
+      const totalHours = logsRes.rows[0].total ? parseFloat(logsRes.rows[0].total) : 0.00;
 
       // 3. Get qualitative profile
-      let qualitative = db.prepare('SELECT * FROM qualitative_profiles WHERE game_id = ?').get(game.game_id);
+      const qualRes = await db.query('SELECT * FROM qualitative_profiles WHERE game_id = $1', [game.game_id]);
+      let qualitative = qualRes.rows[0] || null;
       if (qualitative) {
         delete qualitative.profile_id;
         delete qualitative.game_id;
-      } else {
-        qualitative = null;
       }
 
       // 4. Determine cost share based on acquisition
@@ -364,7 +375,7 @@ app.get('/api/games', authenticateToken, (req, res) => {
         cph,
         qualitative
       };
-    });
+    }));
 
     res.json({
       games: gamesWithMetrics,
@@ -377,7 +388,7 @@ app.get('/api/games', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/games', authenticateToken, (req, res) => {
+app.post('/api/games', authenticateToken, async (req, res) => {
   const { title, acquisition_type, subscription_id, base_cost, qualitative } = req.body;
   
   if (!title || !acquisition_type) {
@@ -390,19 +401,17 @@ app.post('/api/games', authenticateToken, (req, res) => {
     const finalSubId = acquisition_type === 'subscription' ? subscription_id : null;
 
     // 1. Insert Game
-    const gameStmt = db.prepare(`
+    await db.query(`
       INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    gameStmt.run(gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost);
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost]);
 
-    // 2. Insert Qualitative Profile (default 0 or user custom)
+    // 2. Insert Qualitative Profile (default 5 or user custom)
     const q = qualitative || {};
-    const qStmt = db.prepare(`
+    await db.query(`
       INSERT INTO qualitative_profiles (profile_id, game_id, story, multiplayer, mechanics, graphics, challenge, relaxation, pacing)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    qStmt.run(
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [
       crypto.randomUUID(),
       gameId,
       parseInt(q.story ?? 5),
@@ -412,7 +421,7 @@ app.post('/api/games', authenticateToken, (req, res) => {
       parseInt(q.challenge ?? 5),
       parseInt(q.relaxation ?? 5),
       parseInt(q.pacing ?? 5)
-    );
+    ]);
 
     res.status(201).json({
       game_id: gameId,
@@ -429,12 +438,13 @@ app.post('/api/games', authenticateToken, (req, res) => {
   }
 });
 
-app.put('/api/games/:id', authenticateToken, (req, res) => {
+app.put('/api/games/:id', authenticateToken, async (req, res) => {
   const { title, acquisition_type, subscription_id, base_cost, qualitative } = req.body;
   const { id } = req.params;
 
   try {
-    const game = db.prepare('SELECT * FROM games WHERE game_id = ? AND user_id = ?').get(id, req.user.userId);
+    const gameRes = await db.query('SELECT * FROM games WHERE game_id = $1 AND user_id = $2', [id, req.user.userId]);
+    const game = gameRes.rows[0];
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
@@ -444,20 +454,18 @@ app.put('/api/games/:id', authenticateToken, (req, res) => {
     const updatedSubId = updatedAcq === 'subscription' ? (subscription_id || game.subscription_id) : null;
     const updatedBaseCost = (updatedAcq === 'free' || updatedAcq === 'f2p') ? 0.00 : parseFloat(base_cost !== undefined ? base_cost : game.base_cost);
 
-    const gameStmt = db.prepare(`
+    await db.query(`
       UPDATE games 
-      SET title = ?, acquisition_type = ?, subscription_id = ?, base_cost = ?
-      WHERE game_id = ? AND user_id = ?
-    `);
-    gameStmt.run(updatedTitle, updatedAcq, updatedSubId, updatedBaseCost, id, req.user.userId);
+      SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4
+      WHERE game_id = $5 AND user_id = $6
+    `, [updatedTitle, updatedAcq, updatedSubId, updatedBaseCost, id, req.user.userId]);
 
     if (qualitative) {
-      const qStmt = db.prepare(`
+      await db.query(`
         UPDATE qualitative_profiles 
-        SET story = ?, multiplayer = ?, mechanics = ?, graphics = ?, challenge = ?, relaxation = ?, pacing = ?
-        WHERE game_id = ?
-      `);
-      qStmt.run(
+        SET story = $1, multiplayer = $2, mechanics = $3, graphics = $4, challenge = $5, relaxation = $6, pacing = $7
+        WHERE game_id = $8
+      `, [
         parseInt(qualitative.story ?? 5),
         parseInt(qualitative.multiplayer ?? 5),
         parseInt(qualitative.mechanics ?? 5),
@@ -466,7 +474,7 @@ app.put('/api/games/:id', authenticateToken, (req, res) => {
         parseInt(qualitative.relaxation ?? 5),
         parseInt(qualitative.pacing ?? 5),
         id
-      );
+      ]);
     }
 
     res.json({ success: true, message: 'Game updated successfully' });
@@ -476,12 +484,11 @@ app.put('/api/games/:id', authenticateToken, (req, res) => {
   }
 });
 
-app.delete('/api/games/:id', authenticateToken, (req, res) => {
+app.delete('/api/games/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const stmt = db.prepare('DELETE FROM games WHERE game_id = ? AND user_id = ?');
-    const result = stmt.run(id, req.user.userId);
-    if (result.changes === 0) {
+    const deleteRes = await db.query('DELETE FROM games WHERE game_id = $1 AND user_id = $2', [id, req.user.userId]);
+    if (deleteRes.rowCount === 0) {
       return res.status(404).json({ error: 'Game not found' });
     }
     res.json({ success: true, message: 'Game deleted' });
@@ -493,23 +500,23 @@ app.delete('/api/games/:id', authenticateToken, (req, res) => {
 
 // --- GAME PURCHASES (ADD-ONS) ROUTES ---
 
-app.get('/api/games/:id/purchases', authenticateToken, (req, res) => {
+app.get('/api/games/:id/purchases', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const purchases = db.prepare(`
+    const purchasesRes = await db.query(`
       SELECT p.* FROM game_purchases p 
       JOIN games g ON p.game_id = g.game_id
-      WHERE p.game_id = ? AND g.user_id = ?
+      WHERE p.game_id = $1 AND g.user_id = $2
       ORDER BY p.purchased_at DESC
-    `).all(id, req.user.userId);
-    res.json(purchases);
+    `, [id, req.user.userId]);
+    res.json(purchasesRes.rows);
   } catch (err) {
     console.error('Get purchases error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/games/:id/purchases', authenticateToken, (req, res) => {
+app.post('/api/games/:id/purchases', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { description, cost } = req.body;
 
@@ -518,17 +525,16 @@ app.post('/api/games/:id/purchases', authenticateToken, (req, res) => {
   }
 
   try {
-    const game = db.prepare('SELECT * FROM games WHERE game_id = ? AND user_id = ?').get(id, req.user.userId);
-    if (!game) {
+    const gameRes = await db.query('SELECT * FROM games WHERE game_id = $1 AND user_id = $2', [id, req.user.userId]);
+    if (gameRes.rows.length === 0) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     const purchaseId = crypto.randomUUID();
-    const stmt = db.prepare(`
+    await db.query(`
       INSERT INTO game_purchases (purchase_id, game_id, description, cost)
-      VALUES (?, ?, ?, ?)
-    `);
-    stmt.run(purchaseId, id, description, parseFloat(cost));
+      VALUES ($1, $2, $3, $4)
+    `, [purchaseId, id, description, parseFloat(cost)]);
 
     res.status(201).json({
       purchase_id: purchaseId,
@@ -542,21 +548,21 @@ app.post('/api/games/:id/purchases', authenticateToken, (req, res) => {
   }
 });
 
-app.delete('/api/purchases/:id', authenticateToken, (req, res) => {
+app.delete('/api/purchases/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
     // Make sure purchase belongs to user's game
-    const purchase = db.prepare(`
+    const purchaseRes = await db.query(`
       SELECT p.purchase_id FROM game_purchases p 
       JOIN games g ON p.game_id = g.game_id
-      WHERE p.purchase_id = ? AND g.user_id = ?
-    `).get(id, req.user.userId);
+      WHERE p.purchase_id = $1 AND g.user_id = $2
+    `, [id, req.user.userId]);
 
-    if (!purchase) {
+    if (purchaseRes.rows.length === 0) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
 
-    db.prepare('DELETE FROM game_purchases WHERE purchase_id = ?').run(id);
+    await db.query('DELETE FROM game_purchases WHERE purchase_id = $1', [id]);
     res.json({ success: true, message: 'Purchase deleted' });
   } catch (err) {
     console.error('Delete purchase error:', err);
@@ -566,15 +572,23 @@ app.delete('/api/purchases/:id', authenticateToken, (req, res) => {
 
 // --- PLAY LOGS ROUTES ---
 
-app.get('/api/games/:id/logs', authenticateToken, (req, res) => {
+app.get('/api/games/:id/logs', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const logs = db.prepare(`
+    const logsRes = await db.query(`
       SELECT l.* FROM play_logs l 
       JOIN games g ON l.game_id = g.game_id
-      WHERE l.game_id = ? AND g.user_id = ?
+      WHERE l.game_id = $1 AND g.user_id = $2
       ORDER BY l.logged_date DESC
-    `).all(id, req.user.userId);
+    `, [id, req.user.userId]);
+
+    // Format dates to string for consistency
+    const logs = logsRes.rows.map(log => ({
+      ...log,
+      logged_date: new Date(log.logged_date).toISOString().substring(0, 10),
+      hours_played: parseFloat(log.hours_played)
+    }));
+
     res.json(logs);
   } catch (err) {
     console.error('Get play logs error:', err);
@@ -582,7 +596,7 @@ app.get('/api/games/:id/logs', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/games/:id/logs', authenticateToken, (req, res) => {
+app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { hours_played, logged_date } = req.body;
 
@@ -591,25 +605,23 @@ app.post('/api/games/:id/logs', authenticateToken, (req, res) => {
   }
 
   try {
-    const game = db.prepare('SELECT * FROM games WHERE game_id = ? AND user_id = ?').get(id, req.user.userId);
-    if (!game) {
+    const gameRes = await db.query('SELECT * FROM games WHERE game_id = $1 AND user_id = $2', [id, req.user.userId]);
+    if (gameRes.rows.length === 0) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     const logId = crypto.randomUUID();
-    // Validate date format YYYY-MM-DD
     const dateObj = new Date(logged_date);
     if (isNaN(dateObj.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    const formattedDate = dateObj.toISOString().split('T')[0]; // Store as YYYY-MM-DD
+    const formattedDate = dateObj.toISOString().substring(0, 10); // Store as YYYY-MM-DD
 
-    const stmt = db.prepare(`
+    await db.query(`
       INSERT INTO play_logs (log_id, game_id, hours_played, logged_date)
-      VALUES (?, ?, ?, ?)
-    `);
-    stmt.run(logId, id, parseFloat(hours_played), formattedDate);
+      VALUES ($1, $2, $3, $4)
+    `, [logId, id, parseFloat(hours_played), formattedDate]);
 
     res.status(201).json({
       log_id: logId,
@@ -623,20 +635,20 @@ app.post('/api/games/:id/logs', authenticateToken, (req, res) => {
   }
 });
 
-app.delete('/api/logs/:id', authenticateToken, (req, res) => {
+app.delete('/api/logs/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
-    const log = db.prepare(`
+    const logRes = await db.query(`
       SELECT l.log_id FROM play_logs l 
       JOIN games g ON l.game_id = g.game_id
-      WHERE l.log_id = ? AND g.user_id = ?
-    `).get(id, req.user.userId);
+      WHERE l.log_id = $1 AND g.user_id = $2
+    `, [id, req.user.userId]);
 
-    if (!log) {
+    if (logRes.rows.length === 0) {
       return res.status(404).json({ error: 'Play log not found' });
     }
 
-    db.prepare('DELETE FROM play_logs WHERE log_id = ?').run(id);
+    await db.query('DELETE FROM play_logs WHERE log_id = $1', [id]);
     res.json({ success: true, message: 'Play log deleted' });
   } catch (err) {
     console.error('Delete play log error:', err);
@@ -646,10 +658,11 @@ app.delete('/api/logs/:id', authenticateToken, (req, res) => {
 
 // --- PAIRWISE MATCHMAKING & ELO ROUTES ---
 
-app.get('/api/pairwise/match', authenticateToken, (req, res) => {
+app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
   try {
     // 1. Fetch user games
-    const games = db.prepare('SELECT game_id, title, elo_rating, match_count FROM games WHERE user_id = ?').all(req.user.userId);
+    const gamesRes = await db.query('SELECT game_id, title, elo_rating, match_count FROM games WHERE user_id = $1', [req.user.userId]);
+    const games = gamesRes.rows;
     
     if (games.length < 2) {
       return res.status(400).json({ error: 'You need at least 2 games in your library to start comparison matches.' });
@@ -657,7 +670,6 @@ app.get('/api/pairwise/match', authenticateToken, (req, res) => {
 
     // 2. Smart Matchmaking:
     // Select Game A randomly, but give preference to games with fewer matches
-    // Sort games by match_count ascending, then select from the bottom 30% randomly
     games.sort((a, b) => a.match_count - b.match_count);
     const poolSize = Math.max(1, Math.floor(games.length * 0.4));
     const randomIdx = Math.floor(Math.random() * poolSize);
@@ -688,7 +700,7 @@ app.get('/api/pairwise/match', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/pairwise/match', authenticateToken, (req, res) => {
+app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
   const { game_a_id, game_b_id, chosen_game_id } = req.body;
 
   if (!game_a_id || !game_b_id || !chosen_game_id) {
@@ -701,8 +713,11 @@ app.post('/api/pairwise/match', authenticateToken, (req, res) => {
 
   try {
     // 1. Fetch current details of games
-    const gameA = db.prepare('SELECT game_id, elo_rating, match_count FROM games WHERE game_id = ? AND user_id = ?').get(game_a_id, req.user.userId);
-    const gameB = db.prepare('SELECT game_id, elo_rating, match_count FROM games WHERE game_id = ? AND user_id = ?').get(game_b_id, req.user.userId);
+    const resA = await db.query('SELECT game_id, elo_rating, match_count FROM games WHERE game_id = $1 AND user_id = $2', [game_a_id, req.user.userId]);
+    const resB = await db.query('SELECT game_id, elo_rating, match_count FROM games WHERE game_id = $1 AND user_id = $2', [game_b_id, req.user.userId]);
+    
+    const gameA = resA.rows[0];
+    const gameB = resB.rows[0];
 
     if (!gameA || !gameB) {
       return res.status(404).json({ error: 'One or both games not found' });
@@ -712,37 +727,36 @@ app.post('/api/pairwise/match', authenticateToken, (req, res) => {
     const ratingB = gameB.elo_rating;
 
     // 2. Calculate ELO expectations
-    // Expected probability
     const EA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
     const EB = 1 / (1 + Math.pow(10, (ratingA - ratingB) / 400));
 
-    // K-factor
     const K = 32;
 
-    // Actual outcomes
     const SA = chosen_game_id === game_a_id ? 1 : 0;
     const SB = chosen_game_id === game_b_id ? 1 : 0;
 
-    // New ratings
     const newRatingA = Math.round(ratingA + K * (SA - EA));
     const newRatingB = Math.round(ratingB + K * (SB - EB));
 
     // 3. Log match
     const matchId = crypto.randomUUID();
-    const matchStmt = db.prepare(`
+    await db.query(`
       INSERT INTO pairwise_matches (match_id, user_id, game_a_id, game_b_id, chosen_game_id)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    matchStmt.run(matchId, req.user.userId, game_a_id, game_b_id, chosen_game_id);
+      VALUES ($1, $2, $3, $4, $5)
+    `, [matchId, req.user.userId, game_a_id, game_b_id, chosen_game_id]);
 
     // 4. Update games
-    const updateStmt = db.prepare(`
+    await db.query(`
       UPDATE games 
-      SET elo_rating = ?, match_count = match_count + 1 
-      WHERE game_id = ?
-    `);
-    updateStmt.run(newRatingA, game_a_id);
-    updateStmt.run(newRatingB, game_b_id);
+      SET elo_rating = $1, match_count = match_count + 1 
+      WHERE game_id = $2
+    `, [newRatingA, game_a_id]);
+
+    await db.query(`
+      UPDATE games 
+      SET elo_rating = $1, match_count = match_count + 1 
+      WHERE game_id = $2
+    `, [newRatingB, game_b_id]);
 
     res.json({
       gameA: {
@@ -776,6 +790,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+// Avoid app.listen when running under Vercel Serverless environment
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Backend server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
