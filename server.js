@@ -791,20 +791,35 @@ app.delete('/api/logs/:id', authenticateToken, async (req, res) => {
 
 // --- PAIRWISE MATCHMAKING & ELO ROUTES ---
 
+const COMPARISON_PROMPTS = [
+  { id: 'general', text: 'Which experience do you prefer overall?' },
+  { id: 'right_now', text: 'Which game would you rather play right now?' },
+  { id: 'relax', text: 'Which game would you rather play to relax?' },
+  { id: 'social', text: 'Which game would you rather play with friends?' },
+  { id: 'solo', text: 'Which game would you rather play solo?' },
+  { id: 'story', text: 'Which game has the better story/narrative?' },
+  { id: 'mechanics', text: 'Which game has the better gameplay mechanics?' },
+  { id: 'graphics', text: 'Which game has the more impressive graphics/visuals?' },
+  { id: 'challenge', text: 'Which game has the more satisfying challenge/difficulty?' },
+  { id: 'pacing', text: 'Which game has the more satisfying pacing/flow?' },
+  { id: 'engagement', text: 'Which game has the more engaging hook/retention?' },
+  { id: 'stress', text: 'Which game has more intense/stressful moments?' }
+];
+
 app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
   try {
-    // 1. Fetch user games that have unplayed = false AND have at least one log entry (or total_hours > 0)
+    // 1. Fetch user games that have unplayed = false AND overall_hours > 0
     const gamesRes = await db.query(`
       SELECT game_id, title, elo_rating, match_count 
       FROM games 
       WHERE user_id = $1 
         AND unplayed = FALSE
-        AND game_id IN (SELECT DISTINCT game_id FROM play_logs)
+        AND overall_hours > 0
     `, [req.user.userId]);
     const games = gamesRes.rows;
     
     if (games.length < 2) {
-      return res.status(400).json({ error: 'You need at least 2 games in your library to start comparison matches.' });
+      return res.status(400).json({ error: 'You need at least 2 played games in your library to start comparison matches.' });
     }
 
     // 2. Smart Matchmaking:
@@ -832,7 +847,9 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
       gameB = games.find(g => g.game_id !== gameA.game_id);
     }
 
-    res.json({ gameA, gameB });
+    const randomPrompt = COMPARISON_PROMPTS[Math.floor(Math.random() * COMPARISON_PROMPTS.length)];
+
+    res.json({ gameA, gameB, prompt: randomPrompt });
   } catch (err) {
     console.error('Matchmaking error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -840,7 +857,7 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
-  const { game_a_id, game_b_id, chosen_game_id } = req.body;
+  const { game_a_id, game_b_id, chosen_game_id, prompt_type } = req.body;
 
   if (!game_a_id || !game_b_id || !chosen_game_id) {
     return res.status(400).json({ error: 'game_a_id, game_b_id, and chosen_game_id are required' });
@@ -849,6 +866,8 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
   if (chosen_game_id !== game_a_id && chosen_game_id !== game_b_id) {
     return res.status(400).json({ error: 'Chosen game must be either Game A or Game B' });
   }
+
+  const promptType = prompt_type || 'general';
 
   try {
     // 1. Fetch current details of games
@@ -869,7 +888,11 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
     const EA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
     const EB = 1 / (1 + Math.pow(10, (ratingA - ratingB) / 400));
 
-    const K = 32;
+    // Resolve K-factor based on prompt type importance
+    let K = 8;
+    if (promptType === 'general') K = 32;
+    else if (promptType === 'right_now') K = 48; // Mood is highly dynamic
+    else if (promptType === 'relax' || promptType === 'social' || promptType === 'solo') K = 16;
 
     const SA = chosen_game_id === game_a_id ? 1 : 0;
     const SB = chosen_game_id === game_b_id ? 1 : 0;
@@ -880,11 +903,54 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
     // 3. Log match
     const matchId = crypto.randomUUID();
     await db.query(`
-      INSERT INTO pairwise_matches (match_id, user_id, game_a_id, game_b_id, chosen_game_id)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [matchId, req.user.userId, game_a_id, game_b_id, chosen_game_id]);
+      INSERT INTO pairwise_matches (match_id, user_id, game_a_id, game_b_id, chosen_game_id, prompt_type)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [matchId, req.user.userId, game_a_id, game_b_id, chosen_game_id, promptType]);
 
-    // 4. Update games
+    // 4. Update qualitative profiles dynamically
+    const chosenId = chosen_game_id;
+    const unchosenId = chosen_game_id === game_a_id ? game_b_id : game_a_id;
+
+    const columnMapping = {
+      relax: ['relaxation'],
+      social: ['multiplayer', 'social'],
+      story: ['story'],
+      mechanics: ['mechanics'],
+      graphics: ['graphics'],
+      challenge: ['challenge'],
+      pacing: ['pacing'],
+      engagement: ['engagement'],
+      stress: ['stress_intensity']
+    };
+
+    if (promptType === 'solo') {
+      // Winner: solo-friendly (high relaxation/story, low multiplayer/social)
+      await db.query(`
+        UPDATE qualitative_profiles 
+        SET relaxation = LEAST(10.0, COALESCE(relaxation, 5.0) + 0.5),
+            story = LEAST(10.0, COALESCE(story, 5.0) + 0.5),
+            multiplayer = GREATEST(0.0, COALESCE(multiplayer, 5.0) - 0.5),
+            social = GREATEST(0.0, COALESCE(social, 5.0) - 0.5)
+        WHERE game_id = $1
+      `, [chosenId]);
+      // Loser: less solo-friendly (low relaxation/story, high multiplayer/social)
+      await db.query(`
+        UPDATE qualitative_profiles 
+        SET relaxation = GREATEST(0.0, COALESCE(relaxation, 5.0) - 0.5),
+            story = GREATEST(0.0, COALESCE(story, 5.0) - 0.5),
+            multiplayer = LEAST(10.0, COALESCE(multiplayer, 5.0) + 0.5),
+            social = LEAST(10.0, COALESCE(social, 5.0) + 0.5)
+        WHERE game_id = $1
+      `, [unchosenId]);
+    } else if (columnMapping[promptType]) {
+      const cols = columnMapping[promptType];
+      for (const col of cols) {
+        await db.query(`UPDATE qualitative_profiles SET ${col} = LEAST(10.0, COALESCE(${col}, 5.0) + 0.5) WHERE game_id = $1`, [chosenId]);
+        await db.query(`UPDATE qualitative_profiles SET ${col} = GREATEST(0.0, COALESCE(${col}, 5.0) - 0.5) WHERE game_id = $1`, [unchosenId]);
+      }
+    }
+
+    // 5. Update games Elo
     await db.query(`
       UPDATE games 
       SET elo_rating = $1, match_count = match_count + 1 
@@ -913,6 +979,81 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error('Record match error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/pairwise/sort', authenticateToken, async (req, res) => {
+  const { sorted_game_ids, recommendations } = req.body;
+
+  if (!sorted_game_ids || !Array.isArray(sorted_game_ids) || sorted_game_ids.length < 2) {
+    return res.status(400).json({ error: 'sorted_game_ids must be an array of at least 2 game IDs' });
+  }
+
+  try {
+    // 1. Update recommendations if provided
+    if (recommendations && typeof recommendations === 'object') {
+      for (const [gameId, recValue] of Object.entries(recommendations)) {
+        await db.query(`
+          UPDATE games 
+          SET recommend = $1 
+          WHERE game_id = $2 AND user_id = $3
+        `, [recValue === null || recValue === '' ? null : (recValue === true || recValue === 'true'), gameId, req.user.userId]);
+      }
+    }
+
+    const updatedRatings = {};
+
+    // 2. Process adjacent preferences: G[i] beats G[i+1]
+    for (let i = 0; i < sorted_game_ids.length - 1; i++) {
+      const winnerId = sorted_game_ids[i];
+      const loserId = sorted_game_ids[i + 1];
+
+      // Fetch current Elos
+      const resWinner = await db.query('SELECT elo_rating, match_count FROM games WHERE game_id = $1 AND user_id = $2', [winnerId, req.user.userId]);
+      const resLoser = await db.query('SELECT elo_rating, match_count FROM games WHERE game_id = $1 AND user_id = $2', [loserId, req.user.userId]);
+
+      if (resWinner.rows.length > 0 && resLoser.rows.length > 0) {
+        const ratingWinner = resWinner.rows[0].elo_rating;
+        const ratingLoser = resLoser.rows[0].elo_rating;
+
+        // Calculate ELO expectations
+        const EW = 1 / (1 + Math.pow(10, (ratingLoser - ratingWinner) / 400));
+        const EL = 1 / (1 + Math.pow(10, (ratingWinner - ratingLoser) / 400));
+
+        const K = 16; // Moderate weight for card sorting adjacent elements
+
+        const newRatingWinner = Math.round(ratingWinner + K * (1 - EW));
+        const newRatingLoser = Math.round(ratingLoser + K * (0 - EL));
+
+        // Log match
+        const matchId = crypto.randomUUID();
+        await db.query(`
+          INSERT INTO pairwise_matches (match_id, user_id, game_a_id, game_b_id, chosen_game_id, prompt_type)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [matchId, req.user.userId, winnerId, loserId, winnerId, 'card_sort']);
+
+        // Update games Elo
+        await db.query(`
+          UPDATE games 
+          SET elo_rating = $1, match_count = match_count + 1 
+          WHERE game_id = $2
+        `, [newRatingWinner, winnerId]);
+
+        await db.query(`
+          UPDATE games 
+          SET elo_rating = $1, match_count = match_count + 1 
+          WHERE game_id = $2
+        `, [newRatingLoser, loserId]);
+
+        updatedRatings[winnerId] = newRatingWinner;
+        updatedRatings[loserId] = newRatingLoser;
+      }
+    }
+
+    res.json({ success: true, updatedRatings });
+  } catch (err) {
+    console.error('Card sorting record error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

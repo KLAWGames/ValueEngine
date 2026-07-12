@@ -138,6 +138,7 @@ const initDb = async () => {
     await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS engagement INT CHECK (engagement BETWEEN 0 AND 10);");
     await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS social INT CHECK (social BETWEEN 0 AND 10);");
     await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS stress_intensity INT CHECK (stress_intensity BETWEEN 0 AND 10);");
+    await pool.query("ALTER TABLE pairwise_matches ADD COLUMN IF NOT EXISTS prompt_type VARCHAR(50) DEFAULT 'general';");
 
     // 3. Create categories reference table
     await pool.query(`
