@@ -736,48 +736,42 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                   <label className="form-label">Acquisition Model</label>
                   <select
                     className="form-input form-select"
-                    value={acqType}
-                    onChange={(e) => setAcqType(e.target.value)}
+                    value={subId ? `sub-${subId}` : acqType}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val.startsWith('sub-')) {
+                        setAcqType('subscription');
+                        setSubId(val.replace('sub-', ''));
+                      } else {
+                        setAcqType(val);
+                        setSubId('');
+                      }
+                    }}
                   >
                     <option value="retail">Retail Purchase</option>
-                    <option value="subscription">Subscription Service</option>
                     <option value="free">Completely Free</option>
                     <option value="f2p">Free to Play (F2P)</option>
+                    {subscriptions.filter(s => !!s.is_active).map(s => (
+                      <option key={s.subscription_id} value={`sub-${s.subscription_id}`}>
+                        Subscription: {s.name} (${parseFloat(s.cost || s.monthly_cost || 0).toFixed(2)}/{s.billing_cycle === 'yearly' ? 'yr' : 'mo'})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {acqType === 'subscription' ? (
+                {acqType === 'retail' && (
                   <div className="form-group">
-                    <label className="form-label">Subscription Registry</label>
-                    <select
-                      className="form-input form-select"
-                      value={subId}
-                      onChange={(e) => setSubId(e.target.value)}
+                    <label className="form-label">Base Cost ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-input"
+                      value={baseCost}
+                      onChange={(e) => setBaseCost(e.target.value)}
                       required
-                    >
-                      <option value="">-- Select Active Service --</option>
-                      {subscriptions.map(s => (
-                        <option key={s.subscription_id} value={s.subscription_id}>
-                          {s.name} (${s.monthly_cost.toFixed(2)}/mo)
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
-                ) : (
-                  (acqType === 'retail') && (
-                    <div className="form-group">
-                      <label className="form-label">Base Cost ($)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className="form-input"
-                        value={baseCost}
-                        onChange={(e) => setBaseCost(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )
                 )}
 
                 <div className="form-group">
