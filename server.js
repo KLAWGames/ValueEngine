@@ -350,10 +350,41 @@ app.get('/api/games', authenticateToken, async (req, res) => {
       // 3. Get qualitative profile
       const qualRes = await db.query('SELECT * FROM qualitative_profiles WHERE game_id = $1', [game.game_id]);
       let qualitative = qualRes.rows[0] || null;
-      if (qualitative) {
-        delete qualitative.profile_id;
-        delete qualitative.game_id;
-      }
+      
+      const defaultPillars = {
+        story: 5,
+        multiplayer: 5,
+        mechanics: 5,
+        graphics: 5,
+        challenge: 5,
+        relaxation: 5,
+        pacing: 5,
+        engagement: 5,
+        social: 5,
+        stress_intensity: 5
+      };
+
+      const qualitativeObj = qualitative ? {
+        story: qualitative.story ?? 5,
+        multiplayer: qualitative.multiplayer ?? 5,
+        mechanics: qualitative.mechanics ?? 5,
+        graphics: qualitative.graphics ?? 5,
+        challenge: qualitative.challenge ?? 5,
+        relaxation: qualitative.relaxation ?? 5,
+        pacing: qualitative.pacing ?? 5,
+        engagement: qualitative.engagement ?? 5,
+        social: qualitative.social ?? 5,
+        stress_intensity: qualitative.stress_intensity ?? 5
+      } : defaultPillars;
+
+      // 3b. Fetch category tags
+      const catsRes = await db.query(`
+        SELECT c.name 
+        FROM categories c
+        JOIN game_categories gc ON c.category_id = gc.category_id
+        WHERE gc.game_id = $1
+      `, [game.game_id]);
+      const categories = catsRes.rows.map(r => r.name);
 
       // 4. Determine cost share based on acquisition
       let amortizedSubscriptionCost = 0.00;
@@ -373,7 +404,8 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         total_cost: totalCost,
         total_hours: totalHours,
         cph,
-        qualitative
+        qualitative: qualitativeObj,
+        categories
       };
     }));
 
@@ -389,7 +421,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/games', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, categories } = req.body;
   
   if (!title || !acquisition_type) {
     return res.status(400).json({ error: 'Title and acquisition type are required' });
@@ -399,18 +431,20 @@ app.post('/api/games', authenticateToken, async (req, res) => {
     const gameId = crypto.randomUUID();
     const finalBaseCost = (acquisition_type === 'free' || acquisition_type === 'f2p') ? 0.00 : parseFloat(base_cost || 0);
     const finalSubId = acquisition_type === 'subscription' ? subscription_id : null;
+    const finalUnplayed = unplayed === true || unplayed === 'true';
+    const initialStatus = finalUnplayed ? 'unplayed' : 'playing';
 
     // 1. Insert Game
     await db.query(`
-      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost]);
+      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus]);
 
-    // 2. Insert Qualitative Profile (default 5 or user custom)
+    // 2. Insert Qualitative Profile (default 5 or user custom, expanded to 10 pillars)
     const q = qualitative || {};
     await db.query(`
-      INSERT INTO qualitative_profiles (profile_id, game_id, story, multiplayer, mechanics, graphics, challenge, relaxation, pacing)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO qualitative_profiles (profile_id, game_id, story, multiplayer, mechanics, graphics, challenge, relaxation, pacing, engagement, social, stress_intensity)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [
       crypto.randomUUID(),
       gameId,
@@ -420,8 +454,24 @@ app.post('/api/games', authenticateToken, async (req, res) => {
       parseInt(q.graphics ?? 5),
       parseInt(q.challenge ?? 5),
       parseInt(q.relaxation ?? 5),
-      parseInt(q.pacing ?? 5)
+      parseInt(q.pacing ?? 5),
+      parseInt(q.engagement ?? 5),
+      parseInt(q.social ?? 5),
+      parseInt(q.stress_intensity ?? 5)
     ]);
+
+    // 3. Insert Category tag mappings
+    if (categories && Array.isArray(categories)) {
+      for (const catName of categories) {
+        if (catName && catName.trim()) {
+          const cleanCat = catName.trim();
+          await db.query('INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [cleanCat]);
+          const catRes = await db.query('SELECT category_id FROM categories WHERE name = $1', [cleanCat]);
+          const catId = catRes.rows[0].category_id;
+          await db.query('INSERT INTO game_categories (game_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [gameId, catId]);
+        }
+      }
+    }
 
     if (total_hours !== undefined && parseFloat(total_hours) > 0) {
       const logId = crypto.randomUUID();
@@ -448,7 +498,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/games/:id', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories } = req.body;
   const { id } = req.params;
 
   try {
@@ -462,18 +512,58 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
     const updatedAcq = acquisition_type || game.acquisition_type;
     const updatedSubId = updatedAcq === 'subscription' ? (subscription_id || game.subscription_id) : null;
     const updatedBaseCost = (updatedAcq === 'free' || updatedAcq === 'f2p') ? 0.00 : parseFloat(base_cost !== undefined ? base_cost : game.base_cost);
+    
+    const finalUnplayed = unplayed !== undefined ? (unplayed === true || unplayed === 'true') : game.unplayed;
+    
+    // Status Resolution: Default status to playing if unplayed is turned off, and unplayed if toggled on
+    let finalStatus = status || game.status || 'playing';
+    if (finalUnplayed) {
+      finalStatus = 'unplayed';
+    } else if (game.unplayed && !finalUnplayed) {
+      finalStatus = 'playing'; // automatically move back to playing if unplayed toggled off
+    }
+
+    // Elo rating changes based on game completion state
+    const oldStatus = game.status || 'playing';
+    let newElo = game.elo_rating || 1200;
+
+    if (oldStatus !== 'Finished' && finalStatus === 'Finished') {
+      newElo += 50; // Finish boost
+    } else if (oldStatus === 'Finished' && finalStatus !== 'Finished') {
+      newElo -= 50; // Revert boost
+    }
+
+    if (oldStatus !== 'Did not Finish' && finalStatus === 'Did not Finish') {
+      newElo -= 50; // DNF penalty
+    } else if (oldStatus === 'Did not Finish' && finalStatus !== 'Did not Finish') {
+      newElo += 50; // Revert DNF
+    }
 
     await db.query(`
       UPDATE games 
-      SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4
-      WHERE game_id = $5 AND user_id = $6
-    `, [updatedTitle, updatedAcq, updatedSubId, updatedBaseCost, id, req.user.userId]);
+      SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4,
+          unplayed = $5, status = $6, score_100 = $7, recommend = $8, elo_rating = $9
+      WHERE game_id = $10 AND user_id = $11
+    `, [
+      updatedTitle,
+      updatedAcq,
+      updatedSubId,
+      updatedBaseCost,
+      finalUnplayed,
+      finalStatus,
+      score_100 !== undefined ? (score_100 === null || score_100 === '' ? null : parseInt(score_100)) : game.score_100,
+      recommend !== undefined ? (recommend === null || recommend === '' ? null : (recommend === true || recommend === 'true')) : game.recommend,
+      newElo,
+      id,
+      req.user.userId
+    ]);
 
     if (qualitative) {
       await db.query(`
         UPDATE qualitative_profiles 
-        SET story = $1, multiplayer = $2, mechanics = $3, graphics = $4, challenge = $5, relaxation = $6, pacing = $7
-        WHERE game_id = $8
+        SET story = $1, multiplayer = $2, mechanics = $3, graphics = $4, challenge = $5, 
+            relaxation = $6, pacing = $7, engagement = $8, social = $9, stress_intensity = $10
+        WHERE game_id = $11
       `, [
         parseInt(qualitative.story ?? 5),
         parseInt(qualitative.multiplayer ?? 5),
@@ -482,8 +572,25 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
         parseInt(qualitative.challenge ?? 5),
         parseInt(qualitative.relaxation ?? 5),
         parseInt(qualitative.pacing ?? 5),
+        parseInt(qualitative.engagement ?? 5),
+        parseInt(qualitative.social ?? 5),
+        parseInt(qualitative.stress_intensity ?? 5),
         id
       ]);
+    }
+
+    // Sync categories
+    if (categories && Array.isArray(categories)) {
+      await db.query('DELETE FROM game_categories WHERE game_id = $1', [id]);
+      for (const catName of categories) {
+        if (catName && catName.trim()) {
+          const cleanCat = catName.trim();
+          await db.query('INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [cleanCat]);
+          const catRes = await db.query('SELECT category_id FROM categories WHERE name = $1', [cleanCat]);
+          const catId = catRes.rows[0].category_id;
+          await db.query('INSERT INTO game_categories (game_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, catId]);
+        }
+      }
     }
 
     if (total_hours !== undefined) {
@@ -710,8 +817,14 @@ app.delete('/api/logs/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
   try {
-    // 1. Fetch user games
-    const gamesRes = await db.query('SELECT game_id, title, elo_rating, match_count FROM games WHERE user_id = $1', [req.user.userId]);
+    // 1. Fetch user games that have unplayed = false AND have at least one log entry (or total_hours > 0)
+    const gamesRes = await db.query(`
+      SELECT game_id, title, elo_rating, match_count 
+      FROM games 
+      WHERE user_id = $1 
+        AND unplayed = FALSE
+        AND game_id IN (SELECT DISTINCT game_id FROM play_logs)
+    `, [req.user.userId]);
     const games = gamesRes.rows;
     
     if (games.length < 2) {
@@ -825,6 +938,102 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Record match error:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- CATEGORY & METADATA SEARCH ROUTES ---
+
+app.get('/api/categories', authenticateToken, async (req, res) => {
+  try {
+    const catRes = await db.query('SELECT * FROM categories ORDER BY name ASC');
+    res.json(catRes.rows);
+  } catch (err) {
+    console.error('Get categories error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/categories', authenticateToken, async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Category name is required' });
+  }
+  try {
+    const cleanName = name.trim();
+    await db.query('INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [cleanName]);
+    const catRes = await db.query('SELECT * FROM categories WHERE name = $1', [cleanName]);
+    res.json(catRes.rows[0]);
+  } catch (err) {
+    console.error('Create category error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/games/suggest-categories', authenticateToken, async (req, res) => {
+  const { title } = req.query;
+  if (!title) {
+    return res.status(400).json({ error: 'Game title is required' });
+  }
+  try {
+    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(title)}&language=en&format=json&type=item&limit=5`;
+    const searchRes = await fetch(searchUrl, {
+      headers: { 'User-Agent': 'ValueEngineGameLedger/1.0 (klawgames@example.com)' }
+    });
+    const searchData = await searchRes.json();
+    
+    if (!searchData.search || searchData.search.length === 0) {
+      return res.json([]);
+    }
+
+    let bestEntity = searchData.search[0];
+    for (const entity of searchData.search) {
+      const desc = (entity.description || '').toLowerCase();
+      if (desc.includes('video game') || desc.includes('role-playing game') || desc.includes('shooter game')) {
+        bestEntity = entity;
+        break;
+      }
+    }
+
+    const entityId = bestEntity.id;
+    const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${entityId}&languages=en&format=json&props=claims`;
+    const entityRes = await fetch(entityUrl, {
+      headers: { 'User-Agent': 'ValueEngineGameLedger/1.0 (klawgames@example.com)' }
+    });
+    const entityData = await entityRes.json();
+
+    const claims = entityData.entities[entityId].claims;
+    const genreClaims = claims['P136'];
+    if (!genreClaims || genreClaims.length === 0) {
+      return res.json([]);
+    }
+
+    const genreQids = genreClaims.map(claim => {
+      const datavalue = claim.mainsnak.datavalue;
+      return datavalue && datavalue.value && datavalue.value.id;
+    }).filter(Boolean);
+
+    if (genreQids.length === 0) {
+      return res.json([]);
+    }
+
+    const labelsUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${genreQids.join('|')}&languages=en&format=json&props=labels`;
+    const labelsRes = await fetch(labelsUrl, {
+      headers: { 'User-Agent': 'ValueEngineGameLedger/1.0 (klawgames@example.com)' }
+    });
+    const labelsData = await labelsRes.json();
+
+    const genres = [];
+    for (const qid of genreQids) {
+      const entity = labelsData.entities[qid];
+      if (entity && entity.labels && entity.labels.en) {
+        genres.push(entity.labels.en.value);
+      }
+    }
+    
+    res.json(genres);
+  } catch (err) {
+    console.error('Suggest categories error:', err);
+    res.status(500).json({ error: 'Failed to suggest categories' });
   }
 });
 

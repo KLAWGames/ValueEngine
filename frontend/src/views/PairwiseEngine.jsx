@@ -152,12 +152,15 @@ function PairwiseEngine({ token, games, onRefresh }) {
     if (!profile) return null;
     const pillars = [
       { key: 'story', label: 'Story' },
-      { key: 'multiplayer', label: 'Social' },
       { key: 'mechanics', label: 'Mechanics' },
       { key: 'graphics', label: 'Graphics' },
       { key: 'challenge', label: 'Difficulty' },
       { key: 'relaxation', label: 'Relaxation' },
-      { key: 'pacing', label: 'Pacing' }
+      { key: 'pacing', label: 'Pacing' },
+      { key: 'engagement', label: 'Engagement' },
+      { key: 'multiplayer', label: 'Multiplayer' },
+      { key: 'social', label: 'Social' },
+      { key: 'stress_intensity', label: 'Stress/Intensity' }
     ];
 
     return (

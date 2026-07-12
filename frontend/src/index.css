@@ -1012,6 +1012,191 @@ h1, h2, h3, h4, h5, h6 {
   font-style: italic;
 }
 
+/* --- GAME STATUS BADGES --- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.status-badge.playing {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.2);
+}
+.status-badge.finished {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.2);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.15);
+}
+.status-badge.dnf {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+.status-badge.unplayed {
+  background: rgba(156, 163, 175, 0.15);
+  color: #d1d5db;
+  border-color: rgba(209, 213, 219, 0.2);
+}
+.status-badge.revisit {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(192, 132, 252, 0.2);
+}
+.status-badge.no-longer-playing, 
+.status-badge.uninstalled {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+  border-color: rgba(156, 163, 175, 0.15);
+}
+
+/* --- CATEGORY TAG ELEMENTS --- */
+.game-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.category-tag {
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.category-tag:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+
+/* --- MULTI-SELECT TAGS MANAGER IN MODALS --- */
+.tags-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tags-list-selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.selectable-tag {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.selectable-tag.active {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: var(--primary);
+  color: var(--text-primary);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+}
+
+.selectable-tag:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  color: #c084fc;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.suggest-btn:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-glow-purple);
+}
+
+.suggested-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.suggested-badge {
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  color: #67e8f9;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.suggested-badge:hover {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: var(--secondary);
+}
+
+/* Custom Tag Input Group */
+.custom-tag-group {
+  display: flex;
+  gap: 8px;
+}
+
+/* Finishing review details row */
+.review-highlight-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.review-highlight-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
 /* --- MOBILE RESPONSIVENESS OVERRIDES --- */
 @media (max-width: 768px) {
   /* Body bottom padding to prevent content overlap with fixed bottom navigation bar */

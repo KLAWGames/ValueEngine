@@ -119,6 +119,47 @@ const initDb = async () => {
       );
     `);
 
+    // --- Schema Migration Section ---
+    console.log('Running database schema updates...');
+    
+    // 1. Add status and unplayed columns to games table
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'playing';");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS score_100 INT CHECK (score_100 BETWEEN 0 AND 100) NULL;");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS recommend BOOLEAN NULL;");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS unplayed BOOLEAN DEFAULT FALSE;");
+
+    // 2. Add new split qualitative pillars to qualitative_profiles
+    await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS engagement INT CHECK (engagement BETWEEN 0 AND 10);");
+    await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS social INT CHECK (social BETWEEN 0 AND 10);");
+    await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS stress_intensity INT CHECK (stress_intensity BETWEEN 0 AND 10);");
+
+    // 3. Create categories reference table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        category_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) UNIQUE NOT NULL
+      );
+    `);
+
+    // 4. Create game-category join mapping table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS game_categories (
+        game_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
+        category_id UUID REFERENCES categories(category_id) ON DELETE CASCADE,
+        PRIMARY KEY (game_id, category_id)
+      );
+    `);
+
+    // 5. Seed standard genre tags
+    await pool.query(`
+      INSERT INTO categories (name) VALUES 
+        ('RPG'), ('Action'), ('Adventure'), ('Shooter'), ('Platformer'), 
+        ('Roguelike'), ('Simulation'), ('Strategy'), ('Puzzle'), ('Survival'), 
+        ('Sports'), ('Fighting'), ('Metroidvania'), ('Indie'), ('MMO'), 
+        ('Soulslike'), ('Horror'), ('Sandbox'), ('Card & Board'), ('Racing')
+      ON CONFLICT (name) DO NOTHING;
+    `);
+
     console.log('PostgreSQL database schemas verified/created successfully.');
   } catch (err) {
     console.error('Failed to initialize database tables:', err);

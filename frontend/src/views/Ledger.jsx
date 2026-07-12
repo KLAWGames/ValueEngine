@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Search, Calendar, DollarSign, Edit, Trash2, BookOpen, Star, Sparkles, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Calendar, DollarSign, Edit, Trash2, BookOpen, Star, Sparkles, X, ThumbsUp, CheckCircle, HelpCircle } from 'lucide-react';
 
 function Ledger({ token, games, subscriptions, onRefresh }) {
   // Filters & Search
@@ -16,15 +16,110 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   const [subId, setSubId] = useState('');
   const [baseCost, setBaseCost] = useState('0');
   const [totalHoursInput, setTotalHoursInput] = useState('0');
+  const [unplayed, setUnplayed] = useState(false);
+  const [status, setStatus] = useState('playing');
+  const [score100, setScore100] = useState('');
+  const [recommend, setRecommend] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [suggestedCategories, setSuggestedCategories] = useState([]);
+  const [customCategory, setCustomCategory] = useState('');
+  const [allCategories, setAllCategories] = useState([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+
   const [qualitative, setQualitative] = useState({
     story: 5,
-    multiplayer: 5,
     mechanics: 5,
     graphics: 5,
     challenge: 5,
     relaxation: 5,
-    pacing: 5
+    pacing: 5,
+    engagement: 5,
+    multiplayer: 5,
+    social: 5,
+    stress_intensity: 5
   });
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllCategories(data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchCategories();
+    }
+  }, [token]);
+
+  const handleAddCustomCategory = async () => {
+    if (!customCategory.trim()) return;
+    const name = customCategory.trim();
+    if (!selectedCategories.includes(name)) {
+      setSelectedCategories([...selectedCategories, name]);
+    }
+    setCustomCategory('');
+
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) {
+        fetchCategories();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleFetchSuggestions = async () => {
+    if (!title) return;
+    setIsSuggesting(true);
+    try {
+      const res = await fetch(`/api/games/suggest-categories?title=${encodeURIComponent(title)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestedCategories(data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const handleAddSuggestedCategory = (cat) => {
+    if (!cat) return;
+    // Capitalize first letter of category for consistency
+    const cleanCat = cat.charAt(0).toUpperCase() + cat.slice(1);
+    if (!selectedCategories.includes(cleanCat)) {
+      setSelectedCategories([...selectedCategories, cleanCat]);
+    }
+    fetch('/api/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: cleanCat })
+    }).then(res => {
+      if (res.ok) fetchCategories();
+    });
+  };
 
   // Form states - Log Play Session
   const [logHours, setLogHours] = useState('');
@@ -49,14 +144,24 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setSubId('');
     setBaseCost('0');
     setTotalHoursInput('0');
+    setUnplayed(false);
+    setStatus('playing');
+    setScore100('');
+    setRecommend('');
+    setSelectedCategories([]);
+    setSuggestedCategories([]);
+    setCustomCategory('');
     setQualitative({
       story: 5,
-      multiplayer: 5,
       mechanics: 5,
       graphics: 5,
       challenge: 5,
       relaxation: 5,
-      pacing: 5
+      pacing: 5,
+      engagement: 5,
+      multiplayer: 5,
+      social: 5,
+      stress_intensity: 5
     });
     setActiveModal('addGame');
   };
@@ -68,14 +173,24 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
     setSubId(game.subscription_id || '');
     setBaseCost(game.base_cost.toString());
     setTotalHoursInput(game.total_hours.toString());
+    setUnplayed(game.unplayed || false);
+    setStatus(game.status || 'playing');
+    setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
+    setRecommend(game.recommend !== null && game.recommend !== undefined ? game.recommend.toString() : '');
+    setSelectedCategories(game.categories || []);
+    setSuggestedCategories([]);
+    setCustomCategory('');
     setQualitative(game.qualitative || {
       story: 5,
-      multiplayer: 5,
       mechanics: 5,
       graphics: 5,
       challenge: 5,
       relaxation: 5,
-      pacing: 5
+      pacing: 5,
+      engagement: 5,
+      multiplayer: 5,
+      social: 5,
+      stress_intensity: 5
     });
     setActiveModal('editGame');
   };
@@ -132,7 +247,9 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           subscription_id: acqType === 'subscription' ? subId : null,
           base_cost: acqType === 'subscription' || acqType === 'free' || acqType === 'f2p' ? 0 : parseFloat(baseCost),
           qualitative,
-          total_hours: parseFloat(totalHoursInput || 0)
+          total_hours: parseFloat(totalHoursInput || 0),
+          unplayed,
+          categories: selectedCategories
         })
       });
 
@@ -163,7 +280,12 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           subscription_id: acqType === 'subscription' ? subId : null,
           base_cost: acqType === 'subscription' || acqType === 'free' || acqType === 'f2p' ? 0 : parseFloat(baseCost),
           qualitative,
-          total_hours: parseFloat(totalHoursInput || 0)
+          total_hours: parseFloat(totalHoursInput || 0),
+          unplayed,
+          status,
+          score_100: status === 'Finished' && score100 !== '' ? parseInt(score100) : null,
+          recommend: status === 'Finished' && recommend !== '' ? (recommend === 'true') : null,
+          categories: selectedCategories
         })
       });
 
@@ -294,12 +416,15 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
   // Helper labels for sliders
   const pillarLabels = {
     story: 'Story/Narrative',
-    multiplayer: 'Multiplayer/Social',
     mechanics: 'Gameplay Mechanics',
     graphics: 'Graphics/Visuals',
     challenge: 'Challenge/Difficulty',
     relaxation: 'Relaxation/Chill',
-    pacing: 'Pacing/Engagement'
+    pacing: 'Pacing/Flow',
+    engagement: 'Engagement/Hook',
+    multiplayer: 'Multiplayer Mode',
+    social: 'Social/Community',
+    stress_intensity: 'Stress/Intensity'
   };
 
   return (
@@ -349,10 +474,30 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
               <div>
                 <div className="game-card-header">
                   <h3 className="game-card-title">{game.title}</h3>
-                  <span className={`acq-badge ${game.acquisition_type}`}>
-                    {game.acquisition_type}
-                  </span>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {game.unplayed ? (
+                      <span className="status-badge unplayed">Unplayed</span>
+                    ) : (
+                      game.status && game.status !== 'playing' && (
+                        <span className={`status-badge ${game.status.toLowerCase().replace(/ /g, '-')}`}>
+                          {game.status}
+                        </span>
+                      )
+                    )}
+                    <span className={`acq-badge ${game.acquisition_type}`}>
+                      {game.acquisition_type}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Category Tags */}
+                {game.categories && game.categories.length > 0 && (
+                  <div className="game-card-tags" style={{ marginTop: '8px' }}>
+                    {game.categories.map(cat => (
+                      <span key={cat} className="category-tag">{cat}</span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="game-card-cost">
                   {game.acquisition_type === 'subscription' ? (
@@ -391,7 +536,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                   <div className="sub-stat">
                     <span className="sub-stat-label">Value CPH</span>
                     <span className="sub-stat-value">
-                      {game.cph !== null ? `$${game.cph.toFixed(2)}/h` : 'N/A'}
+                      {game.unplayed ? 'Unplayed' : (game.cph !== null ? `$${game.cph.toFixed(2)}/h` : 'N/A')}
                     </span>
                   </div>
                 </div>
@@ -399,8 +544,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
 
               <div>
                 {/* Qualitative small preview */}
-                {game.qualitative && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+                {!game.unplayed && game.qualitative && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--primary)' }}>
                       <Star size={10} fill="var(--primary)" />
                       <span>Elo: {game.elo_rating}</span>
@@ -413,6 +558,24 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                       <Sparkles size={10} />
                       <span>Mechs: {game.qualitative.mechanics}</span>
                     </div>
+                  </div>
+                )}
+
+                {/* Finished review details */}
+                {game.status === 'Finished' && (game.score_100 !== null || game.recommend !== null) && (
+                  <div className="review-highlight-row">
+                    {game.score_100 !== null && (
+                      <div className="review-highlight-item" style={{ color: '#a78bfa' }}>
+                        <CheckCircle size={10} />
+                        <span>Score: {game.score_100}/100</span>
+                      </div>
+                    )}
+                    {game.recommend !== null && (
+                      <div className="review-highlight-item" style={{ color: game.recommend ? '#34d399' : '#f87171' }}>
+                        <ThumbsUp size={10} style={{ transform: game.recommend ? 'none' : 'rotate(180deg)' }} />
+                        <span>{game.recommend ? 'Recommends' : 'No Recommend'}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -526,31 +689,208 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                 </div>
               </div>
 
-              {/* Qualitative Attribute Profiling Slider Deck */}
-              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
-                  <Sparkles size={16} />
-                  Qualitative Pillar Profile (0-10)
-                </h3>
-                <div className="form-grid" style={{ rowGap: '8px' }}>
-                  {Object.keys(qualitative).map(key => (
-                    <div key={key} className="slider-container">
-                      <div className="slider-info">
-                        <span className="slider-label">{pillarLabels[key]}</span>
-                        <span className="slider-val">{qualitative[key]}/10</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        className="custom-range-slider"
-                        value={qualitative[key]}
-                        onChange={(e) => handleQualitativeChange(key, e.target.value)}
-                      />
-                    </div>
-                  ))}
+              {/* Unplayed Toggle (only in add/edit modals when total playtime is 0) */}
+              {parseFloat(totalHoursInput || 0) === 0 && (
+                <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={unplayed}
+                      onChange={(e) => setUnplayed(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+                    />
+                    <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>
+                      I haven't played this game yet (Unplayed)
+                    </span>
+                  </label>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '26px' }}>
+                    Unplayed games skip qualitative ratings and are excluded from Pairwise Joy matchmaking.
+                  </p>
                 </div>
-              </div>
+              )}
+
+              {/* Status, Surveys, and Categories tags: only available once hours > 0 */}
+              {parseFloat(totalHoursInput || 0) > 0 && (
+                <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  {/* Status Dropdown */}
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label className="form-label">Game Status</label>
+                    <select
+                      className="form-input form-select"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                    >
+                      <option value="playing">Currently Playing</option>
+                      <option value="Finished">Finished</option>
+                      <option value="Did not Finish">Did not Finish (DNF)</option>
+                      <option value="No longer playing">No longer playing</option>
+                      <option value="Uninstalled">Uninstalled</option>
+                      <option value="Want to Revisit">Want to Revisit</option>
+                    </select>
+                  </div>
+
+                  {/* Finished surveys */}
+                  {status === 'Finished' && (
+                    <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Final Score (0-100)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="form-input"
+                          value={score100}
+                          onChange={(e) => setScore100(e.target.value)}
+                          placeholder="e.g. 90"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Would you recommend this?</label>
+                        <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            <input
+                              type="radio"
+                              name="recommend"
+                              value="true"
+                              checked={recommend === 'true'}
+                              onChange={(e) => setRecommend(e.target.value)}
+                              style={{ accentColor: 'var(--primary)' }}
+                              required
+                            />
+                            Yes, recommend
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            <input
+                              type="radio"
+                              name="recommend"
+                              value="false"
+                              checked={recommend === 'false'}
+                              onChange={(e) => setRecommend(e.target.value)}
+                              style={{ accentColor: 'var(--primary)' }}
+                              required
+                            />
+                            No, do not recommend
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Categories Tags Section */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>Categorize Game Genres</label>
+                    <div className="tags-manager">
+                      {allCategories.length > 0 && (
+                        <div className="tags-list-selection" style={{ marginBottom: '8px' }}>
+                          {allCategories.map(cat => {
+                            const isActive = selectedCategories.includes(cat.name);
+                            return (
+                              <button
+                                type="button"
+                                key={cat.category_id}
+                                className={`selectable-tag ${isActive ? 'active' : ''}`}
+                                onClick={() => {
+                                  if (isActive) {
+                                    setSelectedCategories(selectedCategories.filter(c => c !== cat.name));
+                                  } else {
+                                    setSelectedCategories([...selectedCategories, cat.name]);
+                                  }
+                                }}
+                              >
+                                {cat.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Add Custom Tag */}
+                      <div className="custom-tag-group" style={{ marginBottom: '8px' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Add custom tag (e.g. Co-op, Sci-Fi)"
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddCustomCategory();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={handleAddCustomCategory}
+                          style={{ whiteSpace: 'nowrap' }}
+                        >
+                          Add Tag
+                        </button>
+                      </div>
+
+                      {/* Wikidata Suggestions */}
+                      <div>
+                        <button
+                          type="button"
+                          className="suggest-btn"
+                          disabled={isSuggesting}
+                          onClick={handleFetchSuggestions}
+                        >
+                          {isSuggesting ? 'Searching...' : 'Suggest Genres (Fetch from Wikidata)'}
+                        </button>
+                        
+                        {suggestedCategories.length > 0 && (
+                          <div style={{ marginTop: '10px' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Suggested tags (click to add):</span>
+                            <div className="suggested-badge-row">
+                              {suggestedCategories.map(cat => (
+                                <button
+                                  type="button"
+                                  key={cat}
+                                  className="suggested-badge"
+                                  onClick={() => handleAddSuggestedCategory(cat)}
+                                >
+                                  + {cat}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Qualitative Attribute Profiling Slider Deck (Hidden if Unplayed) */}
+              {!unplayed && (
+                <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+                  <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
+                    <Sparkles size={16} />
+                    Qualitative Pillar Profile (0-10)
+                  </h3>
+                  <div className="form-grid" style={{ rowGap: '8px' }}>
+                    {Object.keys(qualitative).map(key => (
+                      <div key={key} className="slider-container">
+                        <div className="slider-info">
+                          <span className="slider-label">{pillarLabels[key]}</span>
+                          <span className="slider-val">{qualitative[key]}/10</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="10"
+                          className="custom-range-slider"
+                          value={qualitative[key]}
+                          onChange={(e) => handleQualitativeChange(key, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setActiveModal(null)}>
