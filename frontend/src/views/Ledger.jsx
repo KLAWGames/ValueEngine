@@ -321,8 +321,8 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
           total_hours: parseFloat(totalHoursInput || 0),
           unplayed,
           status,
-          score_100: status === 'Finished' && score100 !== '' ? parseInt(score100) : null,
-          recommend: status === 'Finished' && recommend !== '' ? (recommend === 'true') : null,
+          score_100: status !== 'playing' && score100 !== '' ? parseInt(score100) : null,
+          recommend: status !== 'playing' && recommend !== '' ? (recommend === 'true') : null,
           categories: selectedCategories,
           play_mode: playMode
         })
@@ -667,7 +667,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                 )}
 
                 {/* Finished review details */}
-                {game.status === 'Finished' && (game.score_100 !== null || game.recommend !== null) && (
+                {(game.score_100 !== null || game.recommend !== null) && (
                   <div className="review-highlight-row">
                     {game.score_100 !== null && (
                       <div className="review-highlight-item" style={{ color: '#a78bfa' }}>
@@ -844,7 +844,7 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
                   </div>
 
                   {/* Finished surveys */}
-                  {status === 'Finished' && (
+                  {status !== 'playing' && parseFloat(totalHoursInput || 0) > 0 && (
                     <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
                       <div className="form-group">
                         <label className="form-label">Final Score (0-100)</label>
