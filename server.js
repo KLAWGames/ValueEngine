@@ -92,10 +92,25 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
 
+    // Smart Session Recency Handler
+    const prevLogin = user.last_login_at;
+    let loginPrompt = 'daily'; // Default for new or consecutive logins
+    if (prevLogin) {
+      const diffDays = (Date.now() - new Date(prevLogin).getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays > 8.0) {
+        loginPrompt = 'monthly';
+      } else if (diffDays > 1.5) {
+        loginPrompt = 'weekly';
+      }
+    }
+
+    // Update last login
+    await db.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = $1', [user.user_id]);
+
     const token = jwt.sign({ userId: user.user_id }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
-      user: { userId: user.user_id, email: user.email }
+      user: { userId: user.user_id, email: user.email, login_prompt: loginPrompt }
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -737,7 +752,7 @@ app.get('/api/games/:id/logs', authenticateToken, async (req, res) => {
 
 app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { hours_played, logged_date, addToTotal } = req.body;
+  const { hours_played, logged_date, addToTotal, is_rotation_boost } = req.body;
 
   if (hours_played === undefined || !logged_date) {
     return res.status(400).json({ error: 'Hours played and log date are required' });
@@ -769,6 +784,15 @@ app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
         SET overall_hours = overall_hours + $1
         WHERE game_id = $2
       `, [hours, id]);
+    }
+
+    const isRotationBoost = is_rotation_boost === true || is_rotation_boost === 'true';
+    if (isRotationBoost) {
+      await db.query(`
+        UPDATE games 
+        SET elo_rating = elo_rating + 10 
+        WHERE game_id = $1
+      `, [id]);
     }
 
     res.status(201).json({
@@ -1026,6 +1050,117 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/api/games/linear-sort', authenticateToken, async (req, res) => {
+  const { game_id, insert_index } = req.body;
+
+  if (!game_id || insert_index === undefined) {
+    return res.status(400).json({ error: 'game_id and insert_index are required' });
+  }
+
+  try {
+    // 1. Fetch the target game to make sure it exists for this user
+    const gameRes = await db.query('SELECT * FROM games WHERE game_id = $1 AND user_id = $2', [game_id, req.user.userId]);
+    const targetGame = gameRes.rows[0];
+    if (!targetGame) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    // 2. Fetch all currently sorted games in the Long Line
+    const sortedRes = await db.query(
+      'SELECT game_id, elo_rating, match_count, title FROM games WHERE user_id = $1 AND linear_position IS NOT NULL ORDER BY linear_position ASC',
+      [req.user.userId]
+    );
+    let sortedGames = sortedRes.rows;
+
+    // Remove the target game from the sorted list if it is already there (moving case)
+    const existingIndex = sortedGames.findIndex(g => g.game_id === game_id);
+    if (existingIndex !== -1) {
+      sortedGames.splice(existingIndex, 1);
+    }
+
+    // 3. Splice targetGame into sortedGames at insert_index
+    sortedGames.splice(insert_index, 0, targetGame);
+
+    // 4. Update linear_position database values for all elements
+    for (let idx = 0; idx < sortedGames.length; idx++) {
+      await db.query(
+        'UPDATE games SET linear_position = $1 WHERE game_id = $2 AND user_id = $3',
+        [idx, sortedGames[idx].game_id, req.user.userId]
+      );
+    }
+
+    // 5. Bulk Elo updates across adjacent stack nodes
+    const K = 32;
+    let newEloTarget = targetGame.elo_rating || 1200;
+
+    // Check frontGame (index insert_index - 1)
+    if (insert_index > 0) {
+      const frontGame = sortedGames[insert_index - 1];
+      const ratingA = frontGame.elo_rating || 1200; // winner
+      const ratingB = newEloTarget; // loser
+      
+      const EA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+      const EB = 1 / (1 + Math.pow(10, (ratingA - ratingB) / 400));
+      
+      const newRatingA = Math.round(ratingA + K * (1 - EA));
+      newEloTarget = Math.round(ratingB + K * (0 - EB));
+
+      // Update frontGame ELO
+      await db.query(
+        'UPDATE games SET elo_rating = $1, match_count = match_count + 1 WHERE game_id = $2 AND user_id = $3',
+        [newRatingA, frontGame.game_id, req.user.userId]
+      );
+
+      // Log match
+      await db.query(`
+        INSERT INTO pairwise_matches (match_id, user_id, exercise_type, game_a_id, game_b_id, chosen_game_id)
+        VALUES ($1, $2, 'long_line', $3, $4, $5)
+      `, [crypto.randomUUID(), req.user.userId, frontGame.game_id, game_id, frontGame.game_id]);
+    }
+
+    // Check behindGame (index insert_index + 1)
+    if (insert_index + 1 < sortedGames.length) {
+      const behindGame = sortedGames[insert_index + 1];
+      const ratingA = newEloTarget; // winner
+      const ratingB = behindGame.elo_rating || 1200; // loser
+      
+      const EA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+      const EB = 1 / (1 + Math.pow(10, (ratingA - ratingB) / 400));
+      
+      newEloTarget = Math.round(ratingA + K * (1 - EA));
+      const newRatingB = Math.round(ratingB + K * (0 - EB));
+
+      // Update behindGame ELO
+      await db.query(
+        'UPDATE games SET elo_rating = $1, match_count = match_count + 1 WHERE game_id = $2 AND user_id = $3',
+        [newRatingB, behindGame.game_id, req.user.userId]
+      );
+
+      // Log match
+      await db.query(`
+        INSERT INTO pairwise_matches (match_id, user_id, exercise_type, game_a_id, game_b_id, chosen_game_id)
+        VALUES ($1, $2, 'long_line', $3, $4, $5)
+      `, [crypto.randomUUID(), req.user.userId, game_id, behindGame.game_id, game_id]);
+    }
+
+    // Update target game ELO
+    await db.query(
+      'UPDATE games SET elo_rating = $1, match_count = match_count + $2 WHERE game_id = $3 AND user_id = $4',
+      [
+        newEloTarget,
+        (insert_index > 0 ? 1 : 0) + (insert_index + 1 < sortedGames.length ? 1 : 0),
+        game_id,
+        req.user.userId
+      ]
+    );
+
+    res.json({ success: true, new_elo: newEloTarget });
+  } catch (err) {
+    console.error('Linear sort error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/api/pairwise/sort', authenticateToken, async (req, res) => {
   const { sorted_game_ids, recommendations } = req.body;
 
@@ -1117,6 +1252,84 @@ app.post('/api/moods', authenticateToken, async (req, res) => {
     res.status(201).json({ success: true, mood_id: moodId, mood_type });
   } catch (err) {
     console.error('Record player mood error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/moods/timeline', authenticateToken, async (req, res) => {
+  try {
+    // 1. Fetch all play logs joined with qualitative profiles
+    const logsRes = await db.query(`
+      SELECT l.hours_played, l.logged_date, q.story, q.multiplayer, q.mechanics, q.graphics, q.challenge, q.relaxation, q.pacing 
+      FROM play_logs l 
+      JOIN games g ON l.game_id = g.game_id 
+      JOIN qualitative_profiles q ON g.game_id = q.game_id 
+      WHERE g.user_id = $1 
+      ORDER BY l.logged_date ASC
+    `, [req.user.userId]);
+
+    const logs = logsRes.rows;
+    if (logs.length === 0) {
+      return res.json([]);
+    }
+
+    // Helper to calculate the start of week for YYYY-MM-DD
+    const getStartOfWeek = (dateStr) => {
+      const d = new Date(dateStr);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const startOfWeek = new Date(d.setDate(diff));
+      return startOfWeek.toISOString().substring(0, 10);
+    };
+
+    // Group logs by week
+    const weeklyData = {};
+    for (const log of logs) {
+      const week = getStartOfWeek(log.logged_date);
+      if (!weeklyData[week]) {
+        weeklyData[week] = {
+          week,
+          total_hours: 0,
+          story_sum: 0,
+          multiplayer_sum: 0,
+          mechanics_sum: 0,
+          graphics_sum: 0,
+          challenge_sum: 0,
+          relaxation_sum: 0,
+          pacing_sum: 0
+        };
+      }
+
+      const hours = parseFloat(log.hours_played);
+      weeklyData[week].total_hours += hours;
+      weeklyData[week].story_sum += (log.story ?? 5) * hours;
+      weeklyData[week].multiplayer_sum += (log.multiplayer ?? 5) * hours;
+      weeklyData[week].mechanics_sum += (log.mechanics ?? 5) * hours;
+      weeklyData[week].graphics_sum += (log.graphics ?? 5) * hours;
+      weeklyData[week].challenge_sum += (log.challenge ?? 5) * hours;
+      weeklyData[week].relaxation_sum += (log.relaxation ?? 5) * hours;
+      weeklyData[week].pacing_sum += (log.pacing ?? 5) * hours;
+    }
+
+    // Compute weighted averages
+    const timeline = Object.values(weeklyData).map(w => {
+      const total = w.total_hours || 1.0;
+      return {
+        week: w.week,
+        hours: w.total_hours,
+        story: Math.round((w.story_sum / total) * 10) / 10,
+        multiplayer: Math.round((w.multiplayer_sum / total) * 10) / 10,
+        mechanics: Math.round((w.mechanics_sum / total) * 10) / 10,
+        graphics: Math.round((w.graphics_sum / total) * 10) / 10,
+        challenge: Math.round((w.challenge_sum / total) * 10) / 10,
+        relaxation: Math.round((w.relaxation_sum / total) * 10) / 10,
+        pacing: Math.round((w.pacing_sum / total) * 10) / 10
+      };
+    }).sort((a, b) => a.week.localeCompare(b.week));
+
+    res.json(timeline);
+  } catch (err) {
+    console.error('Get moods timeline error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

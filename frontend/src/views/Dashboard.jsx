@@ -1,9 +1,32 @@
-import React, { useState } from 'react';
-import { DollarSign, Clock, TrendingDown, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle } from 'lucide-react';
 
 function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, onNavigate, onTriggerEditGame, token, onRefresh }) {
   const [selectedGameId, setSelectedGameId] = useState('');
   const [showFreeGames, setShowFreeGames] = useState(false);
+  const [moodTimeline, setMoodTimeline] = useState([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+
+  useEffect(() => {
+    const fetchTimeline = async () => {
+      if (!token) return;
+      setLoadingTimeline(true);
+      try {
+        const res = await fetch('/api/moods/timeline', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setMoodTimeline(data || []);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingTimeline(false);
+      }
+    };
+    fetchTimeline();
+  }, [token, games]);
 
   // Aggregated general stats
   const totalInvestment = games.reduce((sum, g) => sum + g.total_cost, 0);
@@ -119,6 +142,149 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
         This is <span className="bold-highlight">{coffeeRatio}x more cost-efficient</span> than your morning Starbucks routine (${coffeeCph.toFixed(2)}/hr) 
         and <span className="bold-highlight">{movieRatio}x cheaper</span> than a trip to the movie theater (${movieCph.toFixed(2)}/hr) per hour of active entertainment.
       </>
+    );
+  };
+
+  const RenderMoodChart = () => {
+    const [activePillars, setActivePillars] = useState({
+      challenge: true,
+      relaxation: true,
+      story: true,
+      mechanics: false,
+      multiplayer: false,
+      graphics: false,
+      pacing: false
+    });
+
+    if (moodTimeline.length < 2) {
+      return (
+        <div className="no-data-msg" style={{ padding: '40px 0', textAlign: 'center' }}>
+          Log play sessions across multiple weeks to see mood trends over time.
+        </div>
+      );
+    }
+
+    const width = 600;
+    const height = 240;
+    const paddingLeft = 40;
+    const paddingRight = 20;
+    const paddingTop = 20;
+    const paddingBottom = 40;
+
+    const chartW = width - paddingLeft - paddingRight;
+    const chartH = height - paddingTop - paddingBottom;
+
+    const getCoordinates = (pillarKey) => {
+      return moodTimeline.map((item, idx) => {
+        const x = paddingLeft + (idx / (moodTimeline.length - 1)) * chartW;
+        const val = item[pillarKey] || 0;
+        const y = paddingTop + chartH - (val / 10) * chartH;
+        return { x, y, val, week: item.week };
+      });
+    };
+
+    const colors = {
+      challenge: '#ef4444',
+      relaxation: '#10b981',
+      story: '#8b5cf6',
+      mechanics: '#f59e0b',
+      multiplayer: '#3b82f6',
+      graphics: '#06b6d4',
+      pacing: '#eab308'
+    };
+
+    const labels = {
+      challenge: 'Challenge',
+      relaxation: 'Relaxation',
+      story: 'Story/Narrative',
+      mechanics: 'Gameplay Mechanics',
+      multiplayer: 'Multiplayer/Social',
+      graphics: 'Graphics/Visuals',
+      pacing: 'Pacing'
+    };
+
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {Object.entries(labels).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActivePillars(prev => ({ ...prev, [key]: !prev[key] }))}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: '1px solid',
+                borderColor: activePillars[key] ? colors[key] : 'var(--border-color)',
+                background: activePillars[key] ? `${colors[key]}1a` : 'transparent',
+                color: activePillars[key] ? colors[key] : 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors[key] }} />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px 8px 8px' }}>
+          <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+            {[0, 2, 4, 6, 8, 10].map(val => {
+              const y = paddingTop + chartH - (val / 10) * chartH;
+              return (
+                <g key={val}>
+                  <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+                  <text x={paddingLeft - 10} y={y + 4} fill="var(--text-secondary)" fontSize="10" textAnchor="end">{val}</text>
+                </g>
+              );
+            })}
+
+            {moodTimeline.map((item, idx) => {
+              const showLabel = idx === 0 || idx === moodTimeline.length - 1 || (moodTimeline.length < 8) || (idx % Math.round(moodTimeline.length / 4) === 0);
+              if (!showLabel) return null;
+              const x = paddingLeft + (idx / (moodTimeline.length - 1)) * chartW;
+              const formattedDate = item.week.substring(5);
+              return (
+                <g key={idx}>
+                  <line x1={x} y1={paddingTop} x2={x} y2={paddingTop + chartH} stroke="rgba(255,255,255,0.03)" />
+                  <text x={x} y={height - paddingBottom + 18} fill="var(--text-secondary)" fontSize="10" textAnchor="middle">{formattedDate}</text>
+                </g>
+              );
+            })}
+
+            {Object.entries(activePillars).map(([key, active]) => {
+              if (!active) return null;
+              const points = getCoordinates(key);
+              if (points.length < 2) return null;
+              const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+              return (
+                <g key={key}>
+                  <path d={pathData} fill="none" stroke={colors[key]} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  {points.map((p, i) => (
+                    <circle
+                      key={i}
+                      cx={p.x}
+                      cy={p.y}
+                      r="4"
+                      fill="#151518"
+                      stroke={colors[key]}
+                      strokeWidth="2"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <title>{`${labels[key]}: ${p.val}/10\nWeek: ${p.week}`}</title>
+                    </circle>
+                  ))}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
     );
   };
 
@@ -288,6 +454,21 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
             <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>Add at least 2 games in the Game Ledger to launch voting.</div>
           )}
         </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', marginBottom: '8px', fontWeight: 'bold' }}>
+          <TrendingUp size={18} className="purple" /> Dynamic Player Mood Analytics
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
+          Correlates play logs with game profiles to trace how your gameplay mood shifts over time across narrative, social, mechanical, and difficulty components.
+        </p>
+
+        {loadingTimeline ? (
+          <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading mood trends...</div>
+        ) : (
+          <RenderMoodChart />
+        )}
       </div>
 
       <div className="glass-panel" style={{ padding: '24px' }}>

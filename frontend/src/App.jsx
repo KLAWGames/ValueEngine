@@ -4,7 +4,7 @@ import Dashboard from './views/Dashboard';
 import Ledger from './views/Ledger';
 import PairwiseEngine from './views/PairwiseEngine';
 import Subscriptions from './views/Subscriptions';
-import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard } from 'lucide-react';
+import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X } from 'lucide-react';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -16,6 +16,7 @@ function App() {
   const [wasteBreakdown, setWasteBreakdown] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [editGameOnLoad, setEditGameOnLoad] = useState(null);
+  const [loginPrompt, setLoginPrompt] = useState(null);
   
   const [loadingGames, setLoadingGames] = useState(false);
   const [loadingSubs, setLoadingSubs] = useState(false);
@@ -25,6 +26,10 @@ function App() {
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+    if (newUser && newUser.login_prompt) {
+      setLoginPrompt(newUser.login_prompt);
+      sessionStorage.setItem('recency_checked', 'true');
+    }
     setActiveTab('dashboard');
   };
 
@@ -81,8 +86,13 @@ function App() {
     if (token) {
       fetchGames();
       fetchSubscriptions();
+      const sessionChecked = sessionStorage.getItem('recency_checked');
+      if (!sessionChecked && user && user.login_prompt) {
+        setLoginPrompt(user.login_prompt);
+        sessionStorage.setItem('recency_checked', 'true');
+      }
     }
-  }, [token]);
+  }, [token, user]);
 
   if (!token) {
     return <Auth onLogin={login} />;
@@ -131,6 +141,14 @@ function App() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button
+            onClick={() => setLoginPrompt('weekly')}
+            className="nav-item"
+            style={{ background: 'rgba(167, 139, 250, 0.1)', border: '1px solid rgba(167, 139, 250, 0.3)', color: 'var(--accent)', cursor: 'pointer', padding: '6px 12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+          >
+            <Flame size={16} />
+            <span>Habit Check-in</span>
+          </button>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
             {user?.email}
           </span>
@@ -187,7 +205,189 @@ function App() {
           />
         )}
       </main>
+
+      {loginPrompt && (
+        <div className="modal-backdrop" style={{ zIndex: 10000 }}>
+          <div className="glass-panel modal-content" style={{ maxWidth: '520px', width: '100%' }}>
+            <div className="modal-title-row">
+              <div>
+                <h2 style={{ fontSize: '1.25rem' }}>Habit Check-in</h2>
+                <p style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '0.85rem', marginTop: '4px' }}>
+                  {loginPrompt === 'daily' && "What games did you play yesterday?"}
+                  {loginPrompt === 'weekly' && "What games did you play over the last week / past few days?"}
+                  {loginPrompt === 'monthly' && "What games did you play over the last month?"}
+                </p>
+              </div>
+              <button className="modal-close-btn" onClick={() => setLoginPrompt(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <HabitCheckIn 
+              games={games} 
+              token={token} 
+              onClose={() => setLoginPrompt(null)} 
+              onRefresh={fetchGames} 
+            />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function HabitCheckIn({ games, token, onClose, onRefresh }) {
+  const [selectedLogs, setSelectedLogs] = useState(() => {
+    return games
+      .filter(g => g.status === 'playing')
+      .map(g => ({ game_id: g.game_id, title: g.title, hours: '1.0', checked: true }));
+  });
+
+  const [addGameId, setAddGameId] = useState('');
+
+  const handleCheckboxChange = (idx, val) => {
+    setSelectedLogs(prev => {
+      const copy = [...prev];
+      copy[idx].checked = val;
+      return copy;
+    });
+  };
+
+  const handleHoursChange = (idx, val) => {
+    setSelectedLogs(prev => {
+      const copy = [...prev];
+      copy[idx].hours = val;
+      return copy;
+    });
+  };
+
+  const handleAddGame = () => {
+    if (!addGameId) return;
+    const match = games.find(g => g.game_id === addGameId);
+    if (match && !selectedLogs.some(l => l.game_id === addGameId)) {
+      setSelectedLogs(prev => [...prev, { game_id: match.game_id, title: match.title, hours: '1.0', checked: true }]);
+    }
+    setAddGameId('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const activeLogs = selectedLogs.filter(l => l.checked && parseFloat(l.hours) > 0);
+    if (activeLogs.length === 0) {
+      onClose();
+      return;
+    }
+
+    try {
+      const todayStr = new Date().toISOString().substring(0, 10);
+      for (const log of activeLogs) {
+        await fetch(`/api/games/${log.game_id}/logs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            hours_played: parseFloat(log.hours),
+            logged_date: todayStr,
+            addToTotal: true,
+            is_rotation_boost: true
+          })
+        });
+      }
+      onRefresh();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert('Error saving habits');
+    }
+  };
+
+  const remainingGames = games.filter(g => !selectedLogs.some(l => l.game_id === g.game_id));
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
+      <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '6px', marginBottom: '20px' }}>
+        {selectedLogs.length === 0 ? (
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
+            No active games in rotation. Add one below to log playtime.
+          </div>
+        ) : (
+          selectedLogs.map((log, idx) => (
+            <div key={log.game_id} style={{ display: 'flex', alignItems: 'center', justifycontent: 'space-between', gap: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '8px 12px', borderRadius: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#fff', flex: 1, userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={log.checked}
+                  onChange={(e) => handleCheckboxChange(idx, e.target.checked)}
+                  style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.title}</span>
+              </label>
+              
+              {log.checked && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    className="form-input"
+                    style={{ width: '80px', padding: '4px 8px', fontSize: '0.85rem', margin: 0 }}
+                    value={log.hours}
+                    onChange={(e) => handleHoursChange(idx, e.target.value)}
+                    required
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>hrs</span>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginBottom: '20px' }}>
+        <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '6px' }}>Add other game to list</label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <select
+            className="form-input form-select"
+            style={{ margin: 0, padding: '6px 12px', fontSize: '0.85rem' }}
+            value={addGameId}
+            onChange={(e) => setAddGameId(e.target.value)}
+          >
+            <option value="">-- Select Game --</option>
+            {remainingGames.map(g => (
+              <option key={g.game_id} value={g.game_id}>{g.title}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ width: 'auto', padding: '6px 16px', fontSize: '0.85rem', margin: 0 }}
+            onClick={handleAddGame}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ width: 'auto' }}
+          onClick={onClose}
+        >
+          Dismiss
+        </button>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          style={{ width: 'auto' }}
+        >
+          Log Play & Boost ELO
+        </button>
+      </div>
+    </form>
   );
 }
 

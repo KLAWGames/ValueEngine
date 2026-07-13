@@ -29,15 +29,12 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
 
   const [qualitative, setQualitative] = useState({
     story: 5,
+    multiplayer: 5,
     mechanics: 5,
     graphics: 5,
     challenge: 5,
     relaxation: 5,
-    pacing: 5,
-    engagement: 5,
-    multiplayer: 5,
-    social: 5,
-    stress_intensity: 5
+    pacing: 5
   });
 
   const fetchCategories = async () => {
@@ -504,15 +501,12 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   // Helper labels for sliders
   const pillarLabels = {
     story: 'Story/Narrative',
+    multiplayer: 'Multiplayer/Social',
     mechanics: 'Gameplay Mechanics',
     graphics: 'Graphics/Visuals',
     challenge: 'Challenge/Difficulty',
     relaxation: 'Relaxation/Chill',
-    pacing: 'Pacing/Flow',
-    engagement: 'Engagement/Hook',
-    multiplayer: 'Multiplayer Mode',
-    social: 'Social/Community',
-    stress_intensity: 'Stress/Intensity'
+    pacing: 'Pacing/Flow'
   };
 
   return (

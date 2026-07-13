@@ -179,6 +179,11 @@ const initDb = async () => {
       ON CONFLICT (name) DO NOTHING;
     `);
 
+    // 6. Value Engine 2.0 updates
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS linear_position INTEGER;");
+    await pool.query("ALTER TABLE pairwise_matches ADD COLUMN IF NOT EXISTS exercise_type VARCHAR(20) DEFAULT 'pairwise';");
+
     console.log('PostgreSQL database schemas verified/created successfully.');
   } catch (err) {
     console.error('Failed to initialize database tables:', err);

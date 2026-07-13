@@ -360,7 +360,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
       </div>
 
       {/* Mode Selection Tabs */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '32px', flexWrap: 'wrap' }}>
         <button 
           className={`selectable-tag ${activeTab === '1v1' ? 'active' : ''}`}
           onClick={() => setActiveTab('1v1')}
@@ -376,6 +376,14 @@ function PairwiseEngine({ token, games, onRefresh }) {
         >
           <Layers size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
           Card Sorter (3-5 Games)
+        </button>
+        <button 
+          className={`selectable-tag ${activeTab === 'long_line' ? 'active' : ''}`}
+          onClick={() => setActiveTab('long_line')}
+          style={{ padding: '8px 20px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '600' }}
+        >
+          <Trophy size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+          The Long Line
         </button>
       </div>
 
@@ -416,29 +424,23 @@ function PairwiseEngine({ token, games, onRefresh }) {
                   <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'story')}>
                     📖 Story/Narrative
                   </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'multiplayer')}>
+                    👥 Multiplayer/Social
+                  </button>
                   <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'mechanics')}>
-                    ⚙️ Mechanics
+                    ⚙️ Gameplay Mechanics
                   </button>
                   <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'graphics')}>
-                    🎨 Visuals/Graphics
+                    🎨 Graphics/Visuals
                   </button>
                   <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'challenge')}>
                     🏆 Challenge
                   </button>
-                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'pacing')}>
-                    ⏱️ Pacing/Flow
-                  </button>
-                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'engagement')}>
-                    🎣 Engaging Hook
-                  </button>
                   <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'relaxation')}>
-                    🧘 Relaxation/Chill
+                    🧘 Relaxation
                   </button>
-                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'multiplayer')}>
-                    👥 Play with Friends
-                  </button>
-                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px', gridColumn: 'span 2' }} onClick={() => executeVote(pendingVote.winnerId, 'stress_intensity')}>
-                    ⚡ High Intensity/Stress
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px', gridColumn: 'span 2' }} onClick={() => executeVote(pendingVote.winnerId, 'pacing')}>
+                    ⏱️ Pacing
                   </button>
                 </div>
 
@@ -589,6 +591,216 @@ function PairwiseEngine({ token, games, onRefresh }) {
           </div>
         </div>
       )}
+
+      {activeTab === 'long_line' && (
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <p style={{ color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '24px' }}>
+            Isolate experience entirely from playtime or cost. Place unranked games exactly where they fit into your singular continuous stack of fun!
+          </p>
+
+          <LongLineSorter 
+            games={games} 
+            token={token} 
+            onRefresh={onRefresh} 
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LongLineSorter({ games, token, onRefresh }) {
+  const [loading, setLoading] = useState(false);
+  const [selectedGameToMove, setSelectedGameToMove] = useState(null);
+
+  // Unsorted inventory (games that have no linear_position yet, and are not currently selected to move)
+  const unsortedGames = games.filter(g => g.linear_position === null && (!selectedGameToMove || g.game_id !== selectedGameToMove.game_id));
+  
+  // Sorted stack (games that have linear_position set)
+  const sortedStack = games
+    .filter(g => g.linear_position !== null && (!selectedGameToMove || g.game_id !== selectedGameToMove.game_id))
+    .sort((a, b) => a.linear_position - b.linear_position);
+
+  // The active candidate to place: either the game selected to move, or the first unsorted game in inventory
+  const activeCandidate = selectedGameToMove || (unsortedGames.length > 0 ? unsortedGames[0] : null);
+
+  const handlePlaceGame = async (insertIndex) => {
+    if (!activeCandidate) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/games/linear-sort', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          game_id: activeCandidate.game_id,
+          insert_index: insertIndex
+        })
+      });
+      if (res.ok) {
+        setSelectedGameToMove(null);
+        onRefresh();
+      } else {
+        alert('Failed to place game in linear stack');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveFromStack = async (gameId) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/games/${gameId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          linear_position: null
+        })
+      });
+      if (res.ok) {
+        onRefresh();
+      } else {
+        alert('Failed to remove game from linear stack');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+      {/* Active Candidate Placement Card */}
+      {activeCandidate ? (
+        <div className="glass-panel" style={{ padding: '24px', border: '1px solid var(--accent)', background: 'rgba(167, 139, 250, 0.03)', textAlign: 'center', position: 'sticky', top: '10px', zIndex: 100 }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '700' }}>
+            {selectedGameToMove ? 'Repositioning Game' : 'Unsorted Inventory Candidate'}
+          </span>
+          <h2 style={{ fontSize: '1.4rem', color: '#fff', margin: '8px 0 4px' }}>{activeCandidate.title}</h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+            Current rating: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{activeCandidate.elo_rating} Elo</span>
+          </p>
+          
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: '0 0 16px' }}>
+            Scroll down the stack and click "Insert here" where this game fits in order of pure fun!
+          </p>
+
+          {selectedGameToMove && (
+            <button 
+              type="button" 
+              className="btn btn-secondary" 
+              style={{ width: 'auto', padding: '6px 14px', fontSize: '0.8rem' }}
+              onClick={() => setSelectedGameToMove(null)}
+            >
+              Cancel Move
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+          🎉 All games in your library are currently placed in your linear stack of fun!
+        </div>
+      )}
+
+      {/* Sorted Stack List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+          Continuous Stack of Fun ({sortedStack.length} games)
+        </h3>
+
+        {sortedStack.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            {activeCandidate ? (
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ width: 'auto' }} 
+                disabled={loading} 
+                onClick={() => handlePlaceGame(0)}
+              >
+                Place "{activeCandidate.title}" to start stack
+              </button>
+            ) : (
+              <div className="no-data-msg">Add played games in the Ledger to build your stack.</div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Top Drop Zone */}
+            {activeCandidate && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={loading}
+                onClick={() => handlePlaceGame(0)}
+                style={{ background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed rgba(6, 182, 212, 0.3)', color: 'var(--cyan)', padding: '8px', margin: '4px 0', fontSize: '0.8rem', width: '100%' }}
+              >
+                ★ Place at Top (Most Fun)
+              </button>
+            )}
+
+            {sortedStack.map((game, idx) => (
+              <React.Fragment key={game.game_id}>
+                {/* Game Card */}
+                <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', border: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.01)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--primary)' }}>
+                      #{idx + 1}
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{game.title}</h4>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Elo: {game.elo_rating} • Playtime: {parseFloat(game.total_hours || 0).toFixed(1)}h
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="card-action-btn"
+                      style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                      onClick={() => setSelectedGameToMove(game)}
+                    >
+                      Reposition
+                    </button>
+                    <button
+                      type="button"
+                      className="card-action-btn"
+                      style={{ color: 'var(--danger)', fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(239, 68, 68, 0.05)' }}
+                      onClick={() => handleRemoveFromStack(game.game_id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                {/* Intermediate Drop Zone */}
+                {activeCandidate && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={loading}
+                    onClick={() => handlePlaceGame(idx + 1)}
+                    style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px dashed var(--border-color)', color: 'var(--text-secondary)', padding: '6px', margin: '4px 0', fontSize: '0.75rem', width: '100%' }}
+                  >
+                    ↑ Insert below "{game.title}" ↑
+                  </button>
+                )}
+              </React.Fragment>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }
