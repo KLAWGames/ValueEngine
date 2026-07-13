@@ -703,7 +703,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                   </button>
                   <button className="card-action-btn" onClick={() => openAddExpenseModal(game)}>
                     <DollarSign size={14} />
-                    <span>Add DLC</span>
+                    <span>Add-on / DLC</span>
                   </button>
                   <button className="card-action-btn" onClick={() => openEditGameModal(game)}>
                     <Edit size={14} />
@@ -1154,7 +1154,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
           <div className="glass-panel modal-content" style={{ maxWidth: '480px' }}>
             <div className="modal-title-row">
               <div>
-                <h2 style={{ fontSize: '1.25rem' }}>Add Expense (DLC, Microtransactions)</h2>
+                <h2 style={{ fontSize: '1.25rem' }}>Add DLC, In-game Purchase, or Battle Pass</h2>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{selectedGame?.title}</p>
               </div>
               <button className="modal-close-btn" onClick={() => setActiveModal(null)}>
@@ -1164,11 +1164,11 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
 
             <form onSubmit={handleAddExpense}>
               <div className="form-group">
-                <label className="form-label">Expense Description</label>
+                <label className="form-label">Item Name / Description</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Expansion Pass, 1000 Coins"
+                  placeholder="e.g. Expansion Pass, Battle Pass, 1000 Coins"
                   value={expDesc}
                   onChange={(e) => setExpDesc(e.target.value)}
                   required
@@ -1197,17 +1197,21 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
             <div style={{ marginTop: '28px' }}>
               <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>Recorded Expenses</h3>
               {historyExpenses.length === 0 ? (
-                <div className="no-data-msg" style={{ padding: '20px' }}>No add-on expenses recorded yet.</div>
+                <div className="no-data-msg" style={{ padding: '20px' }}>No purchases recorded yet.</div>
               ) : (
                 <div className="list-wrapper">
                   {historyExpenses.map(purchase => (
                     <div key={purchase.purchase_id} className="list-item">
                       <div>
                         <div className="list-item-title">{purchase.description}</div>
-                        <div className="list-item-sub">{purchase.purchased_at.substring(0, 10)}</div>
+                        <div className="list-item-sub">
+                          {purchase.purchased_at ? new Date(purchase.purchased_at).toLocaleDateString() : 'N/A'}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <span style={{ fontWeight: '600' }}>${purchase.cost.toFixed(2)}</span>
+                        <span style={{ fontWeight: '600' }}>
+                          ${parseFloat(purchase.cost || 0).toFixed(2)}
+                        </span>
                         <button className="delete-icon-btn" onClick={() => handleDeleteExpense(purchase.purchase_id)}>
                           <Trash2 size={16} />
                         </button>
