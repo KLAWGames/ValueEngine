@@ -151,6 +151,7 @@ const initDb = async () => {
     await pool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cost NUMERIC(6, 2);");
     await pool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) DEFAULT 'monthly';");
     await pool.query("UPDATE subscriptions SET cost = monthly_cost WHERE cost IS NULL;");
+    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS wont_play_again BOOLEAN DEFAULT FALSE;");
     // 3. Create categories reference table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS categories (

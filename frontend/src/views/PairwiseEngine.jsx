@@ -9,6 +9,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [outcome, setOutcome] = useState(null);
+  const [pendingVote, setPendingVote] = useState(null);
 
   // Card Sorter States
   const [sortingGames, setSortingGames] = useState([]);
@@ -134,6 +135,16 @@ function PairwiseEngine({ token, games, onRefresh }) {
 
   const handleVote = async (winnerId) => {
     if (!match) return;
+    const promptId = match.prompt?.id || 'general';
+    if (promptId === 'general' || promptId === 'right_now') {
+      setPendingVote({ winnerId });
+    } else {
+      executeVote(winnerId, null);
+    }
+  };
+
+  const executeVote = async (winnerId, reasonPillar) => {
+    if (!match) return;
     setLoading(true);
     try {
       const res = await fetch('/api/pairwise/match', {
@@ -146,7 +157,8 @@ function PairwiseEngine({ token, games, onRefresh }) {
           game_a_id: match.gameA.game_id,
           game_b_id: match.gameB.game_id,
           chosen_game_id: winnerId,
-          prompt_type: match.prompt?.id || 'general'
+          prompt_type: match.prompt?.id || 'general',
+          reason_pillar: reasonPillar
         })
       });
       const data = await res.json();
@@ -160,6 +172,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
       console.error(e);
     } finally {
       setLoading(false);
+      setPendingVote(null);
     }
   };
 
@@ -368,6 +381,78 @@ function PairwiseEngine({ token, games, onRefresh }) {
 
       {activeTab === '1v1' ? (
         <>
+          {pendingVote && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(10, 10, 12, 0.85)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px'
+            }}>
+              <div className="glass-panel" style={{
+                maxWidth: '500px',
+                width: '100%',
+                padding: '32px',
+                border: '1px solid var(--border-color)',
+                borderRadius: '16px',
+                textAlign: 'center',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '8px', color: '#fff' }}>
+                  Why did you prefer this game?
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+                  Selecting a reason applies a qualitative rebalancing boost to the winner game's profile.
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'story')}>
+                    📖 Story/Narrative
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'mechanics')}>
+                    ⚙️ Mechanics
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'graphics')}>
+                    🎨 Visuals/Graphics
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'challenge')}>
+                    🏆 Challenge
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'pacing')}>
+                    ⏱️ Pacing/Flow
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'engagement')}>
+                    🎣 Engaging Hook
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'relaxation')}>
+                    🧘 Relaxation/Chill
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px' }} onClick={() => executeVote(pendingVote.winnerId, 'multiplayer')}>
+                    👥 Play with Friends
+                  </button>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '10px', gridColumn: 'span 2' }} onClick={() => executeVote(pendingVote.winnerId, 'stress_intensity')}>
+                    ⚡ High Intensity/Stress
+                  </button>
+                </div>
+
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => executeVote(pendingVote.winnerId, null)}
+                  style={{ width: '100%', background: 'transparent', border: '1px dashed var(--border-color)', color: 'var(--text-muted)' }}
+                >
+                  Skip Reason
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Glowing Matchup Context Prompt Box */}
           <div className="prompt-question-box" style={{ margin: '0 auto 28px', maxWidth: '680px', padding: '16px 24px', borderRadius: '12px', background: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', textAlign: 'center' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '700', display: 'block', marginBottom: '4px' }}>

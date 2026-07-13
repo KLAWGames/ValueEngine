@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Calendar, DollarSign, Edit, Trash2, BookOpen, Star, Sparkles, X, ThumbsUp, CheckCircle, HelpCircle } from 'lucide-react';
 
-function Ledger({ token, games, subscriptions, onRefresh }) {
+function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClearEditGameOnLoad }) {
   // Filters & Search
   const [search, setSearch] = useState('');
   const [acqFilter, setAcqFilter] = useState('');
@@ -59,6 +59,18 @@ function Ledger({ token, games, subscriptions, onRefresh }) {
       fetchCategories();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (editGameOnLoad) {
+      const matchGame = games.find(g => g.game_id === editGameOnLoad.game_id);
+      if (matchGame) {
+        openEditGameModal(matchGame);
+      } else {
+        openEditGameModal(editGameOnLoad);
+      }
+      onClearEditGameOnLoad();
+    }
+  }, [editGameOnLoad, games]);
 
   const handleAddCustomCategory = async () => {
     if (!customCategory.trim()) return;

@@ -15,6 +15,7 @@ function App() {
   const [subscriptionWaste, setSubscriptionWaste] = useState(0);
   const [wasteBreakdown, setWasteBreakdown] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
+  const [editGameOnLoad, setEditGameOnLoad] = useState(null);
   
   const [loadingGames, setLoadingGames] = useState(false);
   const [loadingSubs, setLoadingSubs] = useState(false);
@@ -152,6 +153,12 @@ function App() {
             subscriptionWaste={subscriptionWaste}
             wasteBreakdown={wasteBreakdown}
             onNavigate={setActiveTab}
+            onTriggerEditGame={(game) => {
+              setEditGameOnLoad(game);
+              setActiveTab('ledger');
+            }}
+            token={token}
+            onRefresh={fetchGames}
           />
         )}
         {activeTab === 'ledger' && (
@@ -160,6 +167,8 @@ function App() {
             games={games} 
             subscriptions={subscriptions} 
             onRefresh={fetchGames}
+            editGameOnLoad={editGameOnLoad}
+            onClearEditGameOnLoad={() => setEditGameOnLoad(null)}
           />
         )}
         {activeTab === 'pairwise' && (

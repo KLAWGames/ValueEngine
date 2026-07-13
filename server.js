@@ -513,7 +513,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/games/:id', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories, play_mode } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories, play_mode, wont_play_again } = req.body;
   const { id } = req.params;
 
   try {
@@ -530,6 +530,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
     
     const finalUnplayed = unplayed !== undefined ? (unplayed === true || unplayed === 'true') : game.unplayed;
     const updatedPlayMode = play_mode || game.play_mode || 'single';
+    const updatedWontPlay = wont_play_again !== undefined ? (wont_play_again === true || wont_play_again === 'true') : !!game.wont_play_again;
     
     // Status Resolution: Default status to playing if unplayed is turned off, and unplayed if toggled on
     let finalStatus = status || game.status || 'playing';
@@ -561,8 +562,8 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       UPDATE games 
       SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4,
           unplayed = $5, status = $6, score_100 = $7, recommend = $8, elo_rating = $9,
-          overall_hours = $10, play_mode = $11
-      WHERE game_id = $12 AND user_id = $13
+          overall_hours = $10, play_mode = $11, wont_play_again = $12
+      WHERE game_id = $13 AND user_id = $14
     `, [
       updatedTitle,
       updatedAcq,
@@ -575,6 +576,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       newElo,
       updatedOverallHours,
       updatedPlayMode,
+      updatedWontPlay,
       id,
       req.user.userId
     ]);
@@ -891,7 +893,7 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
-  const { game_a_id, game_b_id, chosen_game_id, prompt_type } = req.body;
+  const { game_a_id, game_b_id, chosen_game_id, prompt_type, reason_pillar } = req.body;
 
   if (!game_a_id || !game_b_id || !chosen_game_id) {
     return res.status(400).json({ error: 'game_a_id, game_b_id, and chosen_game_id are required' });
@@ -982,6 +984,13 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
         await db.query(`UPDATE qualitative_profiles SET ${col} = LEAST(10.0, COALESCE(${col}, 5.0) + 0.5) WHERE game_id = $1`, [chosenId]);
         await db.query(`UPDATE qualitative_profiles SET ${col} = GREATEST(0.0, COALESCE(${col}, 5.0) - 0.5) WHERE game_id = $1`, [unchosenId]);
       }
+    }
+
+    // Apply specific reason pillar boost from generic matchup choice
+    const validPillars = ['story', 'mechanics', 'graphics', 'challenge', 'pacing', 'engagement', 'relaxation', 'social', 'multiplayer', 'stress_intensity'];
+    if (reason_pillar && validPillars.includes(reason_pillar)) {
+      await db.query(`UPDATE qualitative_profiles SET ${reason_pillar} = LEAST(10.0, COALESCE(${reason_pillar}, 5.0) + 1.0) WHERE game_id = $1`, [chosenId]);
+      await db.query(`UPDATE qualitative_profiles SET ${reason_pillar} = GREATEST(0.0, COALESCE(${reason_pillar}, 5.0) - 1.0) WHERE game_id = $1`, [unchosenId]);
     }
 
     // 5. Update games Elo
