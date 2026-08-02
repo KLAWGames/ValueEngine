@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Flame, Trophy, Play, CheckCircle2, ChevronRight, ThumbsUp, ThumbsDown, ChevronUp, ChevronDown, Layers, GripVertical } from 'lucide-react';
 
-function PairwiseEngine({ token, games, onRefresh }) {
-  const [activeTab, setActiveTab] = useState('1v1'); // '1v1' | 'sort'
+function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
+  const [activeMode, setActiveMode] = useState(null); // '1v1', 'sort', 'churn'
   
+  // Churn Diagnostic States
+  const [churnCandidates, setChurnCandidates] = useState([]);
+  const [activeChurnIdx, setActiveChurnIdx] = useState(0);
+  const [churnOutcome, setChurnOutcome] = useState(false);
+  const [churnLoading, setChurnLoading] = useState(false);
   // 1v1 Arena States
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -119,12 +124,24 @@ function PairwiseEngine({ token, games, onRefresh }) {
   };
 
   useEffect(() => {
-    if (activeTab === '1v1') {
-      fetchNextMatch();
-    } else {
-      initCardSorter();
-    }
-  }, [activeTab, games.length]);
+    const fetchChurn = async () => {
+      try {
+        const res = await fetch('/api/churn/candidates', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setChurnCandidates(data);
+        }
+      } catch (e) {}
+    };
+    fetchChurn();
+  }, [token]);
+
+  // Removed automatic mode picking on load
+  useEffect(() => {
+    // We intentionally don't pick a mode automatically now.
+  }, []);
 
   const moveCard = (index, direction) => {
     const targetIndex = index + direction;
@@ -333,15 +350,25 @@ function PairwiseEngine({ token, games, onRefresh }) {
           </div>
         </div>
 
-        <button className="btn btn-primary" onClick={fetchNextMatch}>
-          <span>Continue Matchmaking</span>
-          <ChevronRight size={18} />
-        </button>
+        <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <button className="btn btn-primary" onClick={fetchNextMatch}>
+            Keep playing 1v1 Arena
+          </button>
+          <button className="btn btn-secondary" onClick={() => onNavigate('recommendations')}>
+            Get a Recommendation
+          </button>
+          <button className="btn btn-secondary" onClick={() => onNavigate('dashboard')}>
+            Go back to Dashboard
+          </button>
+          <button className="btn btn-secondary" onClick={() => setActiveMode(null)}>
+            Change Arena Mode
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (activeTab === '1v1' && (loading || !match)) {
+  if (activeMode === '1v1' && (loading || !match)) {
     return (
       <div style={{ padding: '80px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
         <div className="vs-circle" style={{ margin: '0 auto 20px', animation: 'spin 1.5s linear infinite' }}>VS</div>
@@ -350,7 +377,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
     );
   }
 
-  if (activeTab === 'sort' && sortLoading) {
+  if (activeMode === 'sort' && sortLoading) {
     return (
       <div style={{ padding: '80px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
         <div className="vs-circle" style={{ margin: '0 auto 20px', animation: 'spin 1.5s linear infinite' }}>⇅</div>
@@ -412,35 +439,22 @@ function PairwiseEngine({ token, games, onRefresh }) {
         </p>
       </div>
 
-      {/* Mode Selection Tabs */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '32px', flexWrap: 'wrap' }}>
-        <button 
-          className={`selectable-tag ${activeTab === '1v1' ? 'active' : ''}`}
-          onClick={() => setActiveTab('1v1')}
-          style={{ padding: '8px 20px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '600' }}
-        >
-          <Flame size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
-          1v1 Arena
-        </button>
-        <button 
-          className={`selectable-tag ${activeTab === 'sort' ? 'active' : ''}`}
-          onClick={() => setActiveTab('sort')}
-          style={{ padding: '8px 20px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '600' }}
-        >
-          <Layers size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
-          Card Sorter (3-5 Games)
-        </button>
-        <button 
-          className={`selectable-tag ${activeTab === 'long_line' ? 'active' : ''}`}
-          onClick={() => setActiveTab('long_line')}
-          style={{ padding: '8px 20px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '600' }}
-        >
-          <Trophy size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
-          The Long Line
-        </button>
-      </div>
-
-      {activeTab === '1v1' ? (
+      {!activeMode ? (
+        <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px' }}>
+          <p style={{ marginBottom: '24px' }}>Select an arena mode to get started:</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '400px', margin: '0 auto' }}>
+            <button className="btn btn-primary" onClick={() => { setActiveMode('1v1'); fetchNextMatch(); }}>
+              1v1 Matchups
+            </button>
+            <button className="btn btn-primary" onClick={() => { setActiveMode('sort'); initCardSorter(); }}>
+              Card Sorter (3-5 Games)
+            </button>
+            <button className="btn btn-primary" onClick={() => { setActiveMode('long_line'); }}>
+              The Long Line
+            </button>
+          </div>
+        </div>
+      ) : activeMode === '1v1' ? (
         <>
           {pendingVote && (
             <div style={{
@@ -509,11 +523,11 @@ function PairwiseEngine({ token, games, onRefresh }) {
           )}
 
           {/* Glowing Matchup Context Prompt Box */}
-          <div className="prompt-question-box" style={{ margin: '0 auto 16px', maxWidth: '680px', padding: '10px 16px', borderRadius: '10px', background: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '700', display: 'block', marginBottom: '2px' }}>
+          <div className="prompt-question-box" style={{ margin: '0 auto 16px', maxWidth: '680px', padding: '12px 16px', borderRadius: '12px', background: 'var(--primary)', border: '2px solid var(--accent)', textAlign: 'center', boxShadow: '0 0 15px rgba(167, 139, 250, 0.4)' }}>
+            <span style={{ fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '800', display: 'block', marginBottom: '4px' }}>
               Active Matchup Prompt
             </span>
-            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#fff', margin: 0 }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#fff', margin: 0, lineHeight: '1.3' }}>
               {match?.prompt?.text || 'Which experience do you prefer overall?'}
             </h2>
             {match?.prompt?.id === 'social' && (
@@ -521,7 +535,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleSkipMultiplayer}
-                style={{ marginTop: '8px', fontSize: '0.75rem', padding: '4px 10px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                style={{ marginTop: '8px', fontSize: '0.75rem', padding: '6px 12px', width: 'auto', display: 'inline-flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', color: '#fff', border: 'none' }}
               >
                 I don't feel like playing multiplayer games right now
               </button>
@@ -530,36 +544,18 @@ function PairwiseEngine({ token, games, onRefresh }) {
 
           <div className="pairwise-arena">
             {/* Game A Card (Left) */}
-            <div className="glass-panel voter-card left" style={{ padding: '16px', gap: '12px' }}>
-              <div onClick={() => handleVote(match.gameA.game_id)} style={{ cursor: 'pointer' }}>
-                <h2 className="voter-game-title" style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameA.title}</h2>
+            <div className="glass-panel voter-card left" style={{ padding: '12px', gap: '8px', background: 'rgba(167, 139, 250, 0.05)', border: '1px solid var(--primary)' }}>
+              <div onClick={() => handleVote(match.gameA.game_id)} style={{ cursor: 'pointer', textAlign: 'center' }}>
+                <h2 className="voter-game-title" style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameA.title}</h2>
                 <div className="voter-game-subtitle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Elo rating: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{match.gameA.elo_rating}</span> ({match.gameA.match_count} matches)
+                  Elo rating: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{match.gameA.elo_rating}</span>
                 </div>
               </div>
-
-              {/* Accordion Toggle */}
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                onClick={(e) => { e.stopPropagation(); setShowDetailsA(!showDetailsA); }}
-                style={{ fontSize: '0.75rem', padding: '4px 10px', width: 'auto', margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                {showDetailsA ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {showDetailsA ? 'Hide Details' : 'View Details'}
-              </button>
-
-              {/* Accordion Content */}
-              {showDetailsA && (
-                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)', textAlign: 'left' }}>
-                  {renderPillars(profileA, true)}
-                </div>
-              )}
 
               <button 
                 className="btn btn-primary" 
                 onClick={() => handleVote(match.gameA.game_id)}
-                style={{ width: '100%', fontSize: '0.85rem', padding: '8px 12px' }}
+                style={{ width: '100%', fontSize: '0.9rem', padding: '10px 12px', fontWeight: 'bold' }}
               >
                 Prefer {match.gameA.title}
               </button>
@@ -567,40 +563,22 @@ function PairwiseEngine({ token, games, onRefresh }) {
 
             {/* Versus Divider */}
             <div className="versus-divider">
-              <div className="vs-circle" style={{ width: '42px', height: '42px', fontSize: '0.95rem' }}>VS</div>
+              <div className="vs-circle" style={{ width: '36px', height: '36px', fontSize: '0.9rem', border: '2px solid var(--accent)' }}>VS</div>
             </div>
 
             {/* Game B Card (Right) */}
-            <div className="glass-panel voter-card right" style={{ padding: '16px', gap: '12px' }}>
-              <div onClick={() => handleVote(match.gameB.game_id)} style={{ cursor: 'pointer' }}>
-                <h2 className="voter-game-title" style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameB.title}</h2>
+            <div className="glass-panel voter-card right" style={{ padding: '12px', gap: '8px', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid var(--cyan)' }}>
+              <div onClick={() => handleVote(match.gameB.game_id)} style={{ cursor: 'pointer', textAlign: 'center' }}>
+                <h2 className="voter-game-title" style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameB.title}</h2>
                 <div className="voter-game-subtitle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Elo rating: <span style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{match.gameB.elo_rating}</span> ({match.gameB.match_count} matches)
+                  Elo rating: <span style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{match.gameB.elo_rating}</span>
                 </div>
               </div>
-
-              {/* Accordion Toggle */}
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                onClick={(e) => { e.stopPropagation(); setShowDetailsB(!showDetailsB); }}
-                style={{ fontSize: '0.75rem', padding: '4px 10px', width: 'auto', margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                {showDetailsB ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {showDetailsB ? 'Hide Details' : 'View Details'}
-              </button>
-
-              {/* Accordion Content */}
-              {showDetailsB && (
-                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)', textAlign: 'left' }}>
-                  {renderPillars(profileB, false)}
-                </div>
-              )}
 
               <button 
                 className="btn btn-primary" 
                 onClick={() => handleVote(match.gameB.game_id)}
-                style={{ width: '100%', fontSize: '0.85rem', padding: '8px 12px' }}
+                style={{ width: '100%', fontSize: '0.9rem', padding: '10px 12px', fontWeight: 'bold' }}
               >
                 Prefer {match.gameB.title}
               </button>
@@ -608,12 +586,15 @@ function PairwiseEngine({ token, games, onRefresh }) {
           </div>
           
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
-            <button className="btn btn-secondary" style={{ width: 'auto', fontSize: '0.85rem', padding: '6px 16px' }} onClick={fetchNextMatch}>
-              Skip Match / Get Another
+            <button className="btn btn-secondary" style={{ width: 'auto', fontSize: '0.85rem', padding: '6px 16px', marginRight: '8px' }} onClick={fetchNextMatch}>
+              Skip Match
+            </button>
+            <button className="btn btn-secondary" style={{ width: 'auto', fontSize: '0.85rem', padding: '6px 16px' }} onClick={() => setActiveMode(null)}>
+              Change Arena Mode
             </button>
           </div>
         </>
-      ) : (
+      ) : activeMode === 'sort' ? (
         /* Card Sorter UI */
         <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <p style={{ color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '16px' }}>
@@ -685,18 +666,51 @@ function PairwiseEngine({ token, games, onRefresh }) {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '16px', justifyContent: 'center' }}>
-            <button type="button" className="btn btn-secondary" style={{ width: 'auto' }} onClick={initCardSorter}>
-              Reshuffle Batch
-            </button>
-            <button type="button" className="btn btn-primary" style={{ width: 'auto' }} onClick={handleSortSubmit}>
-              Submit Rankings
-            </button>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexDirection: 'column', alignItems: 'center' }}>
+            {sortingOutcome ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '300px' }}>
+                <button type="button" className="btn btn-primary" onClick={initCardSorter}>
+                  Keep sorting more cards
+                </button>
+                <button className="btn btn-secondary" onClick={() => onNavigate('recommendations')}>
+                  Get a Recommendation
+                </button>
+                <button className="btn btn-secondary" onClick={() => onNavigate('dashboard')}>
+                  Go back to Dashboard
+                </button>
+                <button className="btn btn-secondary" onClick={() => setActiveMode(null)}>
+                  Change Arena Mode
+                </button>
+              </div>
+            ) : (
+              <>
+                <button type="button" className="btn btn-secondary" style={{ width: 'auto' }} onClick={initCardSorter}>
+                  Reshuffle Batch
+                </button>
+                <button type="button" className="btn btn-primary" style={{ width: 'auto' }} onClick={handleSortSubmit}>
+                  Submit Rankings
+                </button>
+              </>
+            )}
           </div>
         </div>
-      )}
-
-      {activeTab === 'long_line' && (
+      ) : activeMode === 'churn' && churnCandidates.length > 0 ? (
+        <ChurnDiagnostic 
+          candidate={churnCandidates[activeChurnIdx]} 
+          games={games} 
+          token={token}
+          onComplete={() => {
+            setActiveChurnIdx(prev => prev + 1);
+            setChurnOutcome(true);
+          }}
+          onSkip={() => {
+            setActiveChurnIdx(prev => prev + 1);
+            pickNextMode();
+          }}
+          onKeepGoing={pickNextMode}
+          showOutcome={churnOutcome}
+        />
+      ) : activeMode === 'long_line' ? (
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <p style={{ color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '24px' }}>
             Isolate experience entirely from playtime or cost. Place unranked games exactly where they fit into your singular continuous stack of fun!
@@ -708,7 +722,104 @@ function PairwiseEngine({ token, games, onRefresh }) {
             onRefresh={onRefresh} 
           />
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ChurnDiagnostic({ candidate, games, token, onComplete, onSkip, onKeepGoing, showOutcome }) {
+  const [toGameId, setToGameId] = useState('');
+  const [reasonCategory, setReasonCategory] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  if (showOutcome) {
+    return (
+      <div className="glass-panel" style={{ padding: '40px', maxWidth: '580px', margin: '40px auto', textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', color: 'var(--accent)', marginBottom: '20px' }}>
+          <CheckCircle2 size={54} />
+        </div>
+        <h2 style={{ fontSize: '1.75rem', marginBottom: '8px' }}>Diagnostic Recorded!</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '28px' }}>
+          Thanks! This data helps us map the "Value Engine" of your library to figure out what types of friction cause you to drop games.
+        </p>
+        <button className="btn btn-primary" onClick={onKeepGoing} style={{ width: 'auto' }}>
+          Keep Going <ChevronRight size={18} style={{ display: 'inline', verticalAlign: 'middle' }} />
+        </button>
+      </div>
+    );
+  }
+
+  const handleSubmit = async () => {
+    if (!reasonCategory) return alert('Please select a reason');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/churn/log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          from_game_id: candidate.game_id,
+          to_game_id: toGameId || null,
+          reason_category: reasonCategory
+        })
+      });
+      if (res.ok) onComplete();
+      else alert('Failed to log churn diagnostic');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto', padding: '32px' }}>
+      <span style={{ fontSize: '0.75rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '700', display: 'block', marginBottom: '8px', textAlign: 'center' }}>
+        Library Diagnostic
+      </span>
+      <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
+        Why did you stop playing <span style={{ color: 'var(--accent)' }}>{candidate.title}</span>?
+      </h2>
+      <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '24px' }}>
+        You logged over 2 hours into this game, but haven't played it in weeks.
+      </p>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.85rem' }}>Primary Reason</label>
+        <select className="input-field" value={reasonCategory} onChange={e => setReasonCategory(e.target.value)}>
+          <option value="">-- Select a reason --</option>
+          <option value="finished">Finished the game</option>
+          <option value="bored">Got bored / Pacing was too slow</option>
+          <option value="frustrated">Too difficult / Frustrating</option>
+          <option value="distracted">Distracted by another game</option>
+          <option value="time">Didn't have enough time for it</option>
+          <option value="multiplayer_friends">Friends stopped playing</option>
+          <option value="other">Other / Just lost interest</option>
+        </select>
+      </div>
+
+      {reasonCategory === 'distracted' && (
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.85rem' }}>Which game distracted you? (Optional)</label>
+          <select className="input-field" value={toGameId} onChange={e => setToGameId(e.target.value)}>
+            <option value="">-- Select a game --</option>
+            {games.filter(g => g.game_id !== candidate.game_id).map(g => (
+              <option key={g.game_id} value={g.game_id}>{g.title}</option>
+            ))}
+          </select>
+        </div>
       )}
+
+      <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+        <button className="btn btn-secondary" onClick={onSkip} style={{ width: '100%' }}>
+          Skip this game
+        </button>
+        <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || !reasonCategory} style={{ width: '100%' }}>
+          {loading ? 'Saving...' : 'Submit Diagnostic'}
+        </button>
+      </div>
     </div>
   );
 }

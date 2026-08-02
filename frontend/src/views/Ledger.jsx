@@ -204,16 +204,14 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSuggestedCategories([]);
     setCustomCategory('');
     setQualitative({
-      story: 5,
-      mechanics: 5,
-      graphics: 5,
-      challenge: 5,
-      relaxation: 5,
-      pacing: 5,
-      engagement: 5,
-      multiplayer: 5,
-      social: 5,
-      stress_intensity: 5
+      story: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      multiplayer: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      social: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      mechanics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      graphics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      challenge: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      relaxation: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      pacing: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false }
     });
     setActiveModal('addGame');
   };
@@ -235,16 +233,14 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSuggestedCategories([]);
     setCustomCategory('');
     setQualitative(game.qualitative || {
-      story: 5,
-      mechanics: 5,
-      graphics: 5,
-      challenge: 5,
-      relaxation: 5,
-      pacing: 5,
-      engagement: 5,
-      multiplayer: 5,
-      social: 5,
-      stress_intensity: 5
+      story: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      multiplayer: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      social: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      mechanics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      graphics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      challenge: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      relaxation: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+      pacing: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false }
     });
     setActiveModal('editGame');
   };
@@ -501,23 +497,29 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     }
   };
 
-  const handleQualitativeChange = (key, val) => {
+  const handleQualitativeChange = (key, field, val) => {
     setQualitative(prev => ({
       ...prev,
-      [key]: parseInt(val)
+      [key]: {
+        ...prev[key],
+        [field]: val
+      }
     }));
   };
 
   // Helper labels for sliders
   const pillarLabels = {
     story: 'Story/Narrative',
-    multiplayer: 'Multiplayer/Social',
+    multiplayer: 'Multiplayer',
+    social: 'Community/Social',
     mechanics: 'Gameplay Mechanics',
     graphics: 'Graphics/Visuals',
     challenge: 'Challenge/Difficulty',
     relaxation: 'Relaxation/Chill',
     pacing: 'Pacing/Flow'
   };
+
+  const [expandedPillar, setExpandedPillar] = useState(null);
 
   return (
     <div>
@@ -885,47 +887,31 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                     </select>
                   </div>
 
-                  {/* Ratings / Surveys section */}
-                  {status !== 'playing' && parseFloat(totalHoursInput || 0) > 0 && (
+                  {/* Recommendations / Surveys section */}
+                  {parseFloat(totalHoursInput || 0) > 0 && (
                     <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
                       <div style={{ gridColumn: '1 / -1', marginBottom: '4px' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                           <input
                             type="checkbox"
-                            checked={!hasOpinion || (score100 === '' && recommend === '')}
+                            checked={!hasOpinion || recommend === ''}
                             onChange={(e) => {
                               const notEnough = e.target.checked;
                               setHasOpinion(!notEnough);
                               if (notEnough) {
-                                setScore100('');
                                 setRecommend('');
                               }
                             }}
                             style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
                           />
-                          <span>I haven't played this enough to rate it yet</span>
+                          <span>I haven't played this enough to formally recommend it yet</span>
                         </label>
                       </div>
 
-                      {hasOpinion && (score100 !== '' || recommend !== '' || true) && (
+                      {hasOpinion && (
                         <>
-                          <div className="form-group">
-                            <label className="form-label">Final Score (0-100)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              className="form-input"
-                              value={score100}
-                              onChange={(e) => {
-                                setScore100(e.target.value);
-                                setHasOpinion(true);
-                              }}
-                              placeholder="e.g. 90 (Optional)"
-                            />
-                          </div>
-                          <div className="form-group">
-                            <label className="form-label">Would you recommend this?</label>
+                          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <label className="form-label">Would you recommend this game to others?</label>
                             <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
                                 <input
@@ -939,7 +925,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                                   }}
                                   style={{ accentColor: 'var(--primary)' }}
                                 />
-                                Yes
+                                Yes, definitely
                               </label>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
                                 <input
@@ -953,7 +939,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                                   }}
                                   style={{ accentColor: 'var(--primary)' }}
                                 />
-                                No
+                                No, not really
                               </label>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                 <input
@@ -963,12 +949,11 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                                   checked={recommend === ''}
                                   onChange={(e) => {
                                     setRecommend('');
-                                    setScore100('');
                                     setHasOpinion(false);
                                   }}
                                   style={{ accentColor: 'var(--primary)' }}
                                 />
-                                Haven't played enough to rate
+                                Haven't played enough to decide
                               </label>
                             </div>
                           </div>
@@ -1064,30 +1049,127 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                 </div>
               )}
 
-              {/* Qualitative Attribute Profiling Slider Deck (Hidden if Unplayed) */}
+              {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed) */}
               {!unplayed && (
                 <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                  <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
-                    <Sparkles size={16} />
-                    Qualitative Pillar Profile (0-10)
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: 0 }}>
+                      <Sparkles size={16} />
+                      Qualitative Pillar Deep Dive
+                    </h3>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+                      Overall Score: {(() => {
+                        let totalWeightedScore = 0;
+                        let totalMaxWeight = 0;
+                        Object.keys(pillarLabels).forEach(key => {
+                          const p = qualitative[key];
+                          if (p && p.rating !== null && p.rating !== '') {
+                            const r = parseInt(p.rating);
+                            const weight = p.is_top_pillar ? 2 : 1;
+                            totalWeightedScore += (r * weight);
+                            totalMaxWeight += (10 * weight);
+                          }
+                        });
+                        return totalMaxWeight > 0 ? `${Math.round((totalWeightedScore / totalMaxWeight) * 100)}/100` : 'TBD';
+                      })()}
+                    </div>
+                  </div>
+                  
                   <div className="form-grid" style={{ rowGap: '8px' }}>
-                    {Object.keys(qualitative).map(key => (
-                      <div key={key} className="slider-container">
-                        <div className="slider-info">
-                          <span className="slider-label">{pillarLabels[key]}</span>
-                          <span className="slider-val">{qualitative[key]}/10</span>
+                    {Object.keys(pillarLabels).map(key => {
+                      const pData = qualitative[key] || { rating: null, reason_text: '', was_expected: false, is_top_pillar: false };
+                      const isExpanded = expandedPillar === key;
+                      const hasRating = pData.rating !== null && pData.rating !== '';
+                      
+                      return (
+                        <div key={key} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
+                          <div 
+                            style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? 'rgba(167, 139, 250, 0.1)' : 'transparent' }}
+                            onClick={() => setExpandedPillar(isExpanded ? null : key)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: '600', color: hasRating ? '#fff' : 'var(--text-muted)' }}>{pillarLabels[key]}</span>
+                              {pData.is_top_pillar && <span className="status-badge" style={{ background: 'var(--accent)', color: '#000', fontSize: '0.65rem', padding: '2px 6px' }}>Top Pillar (2x)</span>}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontWeight: 'bold', color: hasRating ? 'var(--primary)' : 'var(--text-muted)' }}>
+                                {hasRating ? `${pData.rating}/10` : 'N/A'}
+                              </span>
+                              <span style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                                <ChevronDown size={16} />
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {isExpanded && (
+                            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)' }}>
+                              <div className="form-group" style={{ marginBottom: '16px' }}>
+                                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>Rating (0-10)</span>
+                                  <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={!hasRating} 
+                                      onChange={(e) => handleQualitativeChange(key, 'rating', e.target.checked ? null : 5)}
+                                      style={{ accentColor: 'var(--primary)' }}
+                                    />
+                                    Mark N/A
+                                  </label>
+                                </label>
+                                
+                                {hasRating && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="10"
+                                      className="custom-range-slider"
+                                      style={{ flex: 1 }}
+                                      value={pData.rating}
+                                      onChange={(e) => handleQualitativeChange(key, 'rating', e.target.value)}
+                                    />
+                                    <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right' }}>{pData.rating}/10</span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="form-group" style={{ marginBottom: '16px' }}>
+                                <label className="form-label">What drove this rating?</label>
+                                <textarea 
+                                  className="form-input" 
+                                  rows="2" 
+                                  placeholder="Briefly explain your rating..."
+                                  value={pData.reason_text || ''}
+                                  onChange={(e) => handleQualitativeChange(key, 'reason_text', e.target.value)}
+                                />
+                              </div>
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={pData.was_expected || false} 
+                                    onChange={(e) => handleQualitativeChange(key, 'was_expected', e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                                  />
+                                  This pillar was something I was specifically looking for when I chose to play.
+                                </label>
+                                
+                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={pData.is_top_pillar || false} 
+                                    onChange={(e) => handleQualitativeChange(key, 'is_top_pillar', e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+                                  />
+                                  This is one of the Top 3-5 defining pillars for this game. (2x Weight)
+                                </label>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="10"
-                          className="custom-range-slider"
-                          value={qualitative[key]}
-                          onChange={(e) => handleQualitativeChange(key, e.target.value)}
-                        />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

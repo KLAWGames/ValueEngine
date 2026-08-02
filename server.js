@@ -465,35 +465,31 @@ app.get('/api/games', authenticateToken, async (req, res) => {
       const totalHours = logsRes.rows[0].total ? parseFloat(logsRes.rows[0].total) : 0.00;
       const lastPlayedAt = logsRes.rows[0].last_played ? logsRes.rows[0].last_played : null;
 
-      // 3. Get qualitative profile
-      const qualRes = await db.query('SELECT * FROM qualitative_profiles WHERE game_id = $1', [game.game_id]);
-      let qualitative = qualRes.rows[0] || null;
+      // 3. Get qualitative profile from new qualitative_pillar_reviews table
+      const qualRes = await db.query('SELECT pillar_name, rating, reason_text, was_expected, is_top_pillar FROM qualitative_pillar_reviews WHERE game_id = $1', [game.game_id]);
       
       const defaultPillars = {
-        story: 5,
-        multiplayer: 5,
-        mechanics: 5,
-        graphics: 5,
-        challenge: 5,
-        relaxation: 5,
-        pacing: 5,
-        engagement: 5,
-        social: 5,
-        stress_intensity: 5
+        story: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        multiplayer: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        social: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        mechanics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        graphics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        challenge: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        relaxation: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
+        pacing: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false }
       };
 
-      const qualitativeObj = qualitative ? {
-        story: qualitative.story ?? 5,
-        multiplayer: qualitative.multiplayer ?? 5,
-        mechanics: qualitative.mechanics ?? 5,
-        graphics: qualitative.graphics ?? 5,
-        challenge: qualitative.challenge ?? 5,
-        relaxation: qualitative.relaxation ?? 5,
-        pacing: qualitative.pacing ?? 5,
-        engagement: qualitative.engagement ?? 5,
-        social: qualitative.social ?? 5,
-        stress_intensity: qualitative.stress_intensity ?? 5
-      } : defaultPillars;
+      const qualitativeObj = {};
+      Object.keys(defaultPillars).forEach(k => { qualitativeObj[k] = { ...defaultPillars[k] }; });
+      
+      qualRes.rows.forEach(r => {
+        qualitativeObj[r.pillar_name] = {
+          rating: r.rating,
+          reason_text: r.reason_text || '',
+          was_expected: !!r.was_expected,
+          is_top_pillar: !!r.is_top_pillar
+        };
+      });
 
       // 3b. Fetch category tags
       const catsRes = await db.query(`
@@ -579,25 +575,21 @@ app.post('/api/games', authenticateToken, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus, initialHours, playMode, finalHasOpinion]);
 
-    // 2. Insert Qualitative Profile (default 5 or user custom, expanded to 10 pillars)
+    // 2. Insert Qualitative Pillar Reviews (using new deep dive schema)
     const q = qualitative || {};
-    await db.query(`
-      INSERT INTO qualitative_profiles (profile_id, game_id, story, multiplayer, mechanics, graphics, challenge, relaxation, pacing, engagement, social, stress_intensity)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    `, [
-      crypto.randomUUID(),
-      gameId,
-      parseInt(q.story ?? 5),
-      parseInt(q.multiplayer ?? 5),
-      parseInt(q.mechanics ?? 5),
-      parseInt(q.graphics ?? 5),
-      parseInt(q.challenge ?? 5),
-      parseInt(q.relaxation ?? 5),
-      parseInt(q.pacing ?? 5),
-      parseInt(q.engagement ?? 5),
-      parseInt(q.social ?? 5),
-      parseInt(q.stress_intensity ?? 5)
-    ]);
+    const defaultPillarsList = ['story', 'multiplayer', 'social', 'mechanics', 'graphics', 'challenge', 'relaxation', 'pacing'];
+    for (const pillar of defaultPillarsList) {
+      const pData = q[pillar] || {};
+      const rating = pData.rating !== undefined && pData.rating !== null ? parseInt(pData.rating) : 5;
+      const reason = pData.reason_text || '';
+      const expected = !!pData.was_expected;
+      const isTop = !!pData.is_top_pillar;
+      
+      await db.query(`
+        INSERT INTO qualitative_pillar_reviews (review_id, game_id, pillar_name, rating, reason_text, was_expected, is_top_pillar)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [crypto.randomUUID(), gameId, pillar, rating, reason, expected, isTop]);
+    }
 
     // 3. Insert Category tag mappings
     if (categories && Array.isArray(categories)) {
@@ -684,6 +676,45 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
 
     const updatedOverallHours = total_hours !== undefined ? parseFloat(total_hours) : game.overall_hours;
 
+    // Dynamic Score_100 calculation based on pillars
+    let computedScore100 = game.score_100;
+    if (qualitative) {
+      // First clear old pillar reviews
+      await db.query('DELETE FROM qualitative_pillar_reviews WHERE game_id = $1', [id]);
+      
+      let totalWeightedScore = 0;
+      let totalMaxWeight = 0;
+
+      for (const [pillarName, pData] of Object.entries(qualitative)) {
+        // rating can be null for N/A
+        const rating = (pData.rating !== undefined && pData.rating !== null && pData.rating !== '') ? parseInt(pData.rating) : null;
+        const reason = pData.reason_text || '';
+        const expected = !!pData.was_expected;
+        const isTop = !!pData.is_top_pillar;
+
+        await db.query(`
+          INSERT INTO qualitative_pillar_reviews (review_id, game_id, pillar_name, rating, reason_text, was_expected, is_top_pillar)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [crypto.randomUUID(), id, pillarName, rating, reason, expected, isTop]);
+
+        if (rating !== null) {
+          const weight = isTop ? 2 : 1;
+          totalWeightedScore += (rating * weight);
+          totalMaxWeight += (10 * weight);
+        }
+      }
+      
+      // Overwrite computed score
+      if (totalMaxWeight > 0) {
+        computedScore100 = Math.round((totalWeightedScore / totalMaxWeight) * 100);
+      } else {
+        computedScore100 = null;
+      }
+    } else {
+      // If no qualitative data is explicitly passed, retain old score_100 if provided, else null.
+      computedScore100 = score_100 !== undefined ? (score_100 === null || score_100 === '' ? null : parseInt(score_100)) : game.score_100;
+    }
+
     await db.query(`
       UPDATE games 
       SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4,
@@ -697,7 +728,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       updatedBaseCost,
       finalUnplayed,
       finalStatus,
-      score_100 !== undefined ? (score_100 === null || score_100 === '' ? null : parseInt(score_100)) : game.score_100,
+      computedScore100,
       recommend !== undefined ? (recommend === null || recommend === '' ? null : (recommend === true || recommend === 'true')) : game.recommend,
       newElo,
       updatedOverallHours,
@@ -707,27 +738,6 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       id,
       req.user.userId
     ]);
-
-    if (qualitative) {
-      await db.query(`
-        UPDATE qualitative_profiles 
-        SET story = $1, multiplayer = $2, mechanics = $3, graphics = $4, challenge = $5, 
-            relaxation = $6, pacing = $7, engagement = $8, social = $9, stress_intensity = $10
-        WHERE game_id = $11
-      `, [
-        parseInt(qualitative.story ?? 5),
-        parseInt(qualitative.multiplayer ?? 5),
-        parseInt(qualitative.mechanics ?? 5),
-        parseInt(qualitative.graphics ?? 5),
-        parseInt(qualitative.challenge ?? 5),
-        parseInt(qualitative.relaxation ?? 5),
-        parseInt(qualitative.pacing ?? 5),
-        parseInt(qualitative.engagement ?? 5),
-        parseInt(qualitative.social ?? 5),
-        parseInt(qualitative.stress_intensity ?? 5),
-        id
-      ]);
-    }
 
     // Sync categories
     if (categories && Array.isArray(categories)) {
@@ -1541,6 +1551,158 @@ app.get('/api/games/suggest-categories', authenticateToken, async (req, res) => 
   } catch (err) {
     console.error('Suggest categories error:', err);
     res.status(500).json({ error: 'Failed to suggest categories' });
+  }
+});
+
+// --- MOOD & INTENT SERVICES ---
+
+app.post('/api/moods/log', authenticateToken, async (req, res) => {
+  const { mood_tag, intended_play_mode, notes } = req.body;
+  if (!mood_tag) return res.status(400).json({ error: 'Mood tag is required' });
+  
+  try {
+    const moodLogId = crypto.randomUUID();
+    await db.query(
+      'INSERT INTO player_mood_logs (mood_log_id, user_id, mood_tag, intended_play_mode, notes) VALUES ($1, $2, $3, $4, $5)',
+      [moodLogId, req.user.userId, mood_tag, intended_play_mode || null, notes || null]
+    );
+    res.json({ message: 'Mood logged successfully', mood_log_id: moodLogId });
+  } catch (err) {
+    console.error('Mood log error:', err);
+    res.status(500).json({ error: 'Failed to log mood' });
+  }
+});
+
+app.get('/api/moods/analytics', authenticateToken, async (req, res) => {
+  try {
+    const queryRes = await db.query(
+      `SELECT mood_tag, COUNT(*) as count 
+       FROM player_mood_logs 
+       WHERE user_id = $1 
+       GROUP BY mood_tag 
+       ORDER BY count DESC`,
+      [req.user.userId]
+    );
+    res.json(queryRes.rows);
+  } catch (err) {
+    console.error('Mood analytics error:', err);
+    res.status(500).json({ error: 'Failed to retrieve mood analytics' });
+  }
+});
+
+// --- CHURN DIAGNOSTICS SERVICES ---
+
+app.get('/api/churn/candidates', authenticateToken, async (req, res) => {
+  // Finds games played recently but haven't been played in a while
+  // Simplified logic for MVP: just get all games not played in last 14 days that have > 2 hours.
+  try {
+    const queryRes = await db.query(
+      `SELECT g.game_id, g.title, MAX(p.logged_date) as last_played
+       FROM games g
+       JOIN play_logs p ON g.game_id = p.game_id
+       WHERE g.user_id = $1
+       GROUP BY g.game_id, g.title
+       HAVING (julianday('now') - julianday(MAX(p.logged_date))) > 14
+       AND SUM(p.hours_played) > 2
+       ORDER BY last_played DESC
+       LIMIT 5`,
+       [req.user.userId]
+    );
+    res.json(queryRes.rows);
+  } catch (err) {
+    console.error('Churn candidates error:', err);
+    res.status(500).json({ error: 'Failed to get churn candidates' });
+  }
+});
+
+app.post('/api/churn/log', authenticateToken, async (req, res) => {
+  const { from_game_id, to_game_id, reason_category, comments } = req.body;
+  if (!from_game_id || !reason_category) return res.status(400).json({ error: 'from_game_id and reason_category required' });
+  
+  try {
+    const churnId = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO game_churn_events (churn_id, user_id, from_game_id, to_game_id, reason_category, comments)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [churnId, req.user.userId, from_game_id, to_game_id || null, reason_category, comments || null]
+    );
+    res.json({ message: 'Churn event logged', churn_id: churnId });
+  } catch (err) {
+    console.error('Churn log error:', err);
+    res.status(500).json({ error: 'Failed to log churn event' });
+  }
+});
+
+// --- RECOMMENDATION ENGINE SERVICES ---
+
+app.get('/api/recommendations/library', authenticateToken, async (req, res) => {
+  const { mood, mode } = req.query;
+  try {
+    let baseQuery = `
+      SELECT g.game_id, g.title, g.cover_image_url, q.story, q.multiplayer, q.challenge, q.relaxation, q.value_satisfaction
+      FROM games g
+      LEFT JOIN qualitative_profiles q ON g.game_id = q.game_id
+      WHERE g.user_id = $1 AND g.game_status IN ('Backlog', 'Playing')
+    `;
+    const params = [req.user.userId];
+    
+    if (mode === 'Single-player') {
+      baseQuery += ` ORDER BY COALESCE(q.story, 5) DESC, COALESCE(q.multiplayer, 5) ASC LIMIT 10`;
+    } else if (mode === 'Multi-player') {
+      baseQuery += ` ORDER BY COALESCE(q.multiplayer, 5) DESC LIMIT 10`;
+    } else if (mood === 'Relaxed' || mood === 'Cozy') {
+      baseQuery += ` ORDER BY COALESCE(q.relaxation, 5) DESC LIMIT 10`;
+    } else if (mood === 'Challenged' || mood === 'Competitive') {
+      baseQuery += ` ORDER BY COALESCE(q.challenge, 5) DESC LIMIT 10`;
+    } else {
+      // Default: prioritize highest overall qualitative score
+      baseQuery += ` ORDER BY (COALESCE(q.story,5) + COALESCE(q.mechanics,5) + COALESCE(q.engagement,5)) DESC LIMIT 10`;
+    }
+    
+    const queryRes = await db.query(baseQuery, params);
+    res.json(queryRes.rows);
+  } catch (err) {
+    console.error('Library recommendations error:', err);
+    res.status(500).json({ error: 'Failed to get recommendations' });
+  }
+});
+
+app.get('/api/recommendations/external', authenticateToken, async (req, res) => {
+  const { tags, mood } = req.query;
+  try {
+    // We allow passing of a RAWG API KEY in ENV
+    if (!process.env.RAWG_API_KEY) {
+      return res.status(500).json({ error: 'RAWG API key missing in environment' });
+    }
+    
+    let rawgUrl = \`https://api.rawg.io/api/games?key=\${process.env.RAWG_API_KEY}&page_size=5&ordering=-rating\`;
+    
+    if (tags) {
+      rawgUrl += \`&tags=\${encodeURIComponent(tags.toLowerCase())}\`;
+    }
+    if (mood === 'Relaxed' || mood === 'Cozy') {
+      rawgUrl += \`&tags=relaxing,atmospheric\`;
+    } else if (mood === 'Challenged' || mood === 'Competitive') {
+      rawgUrl += \`&tags=difficult,souls-like\`;
+    }
+
+    const rawgRes = await fetch(rawgUrl);
+    if (!rawgRes.ok) throw new Error('RAWG API error');
+    const data = await rawgRes.json();
+    
+    const formatted = data.results.map(game => ({
+      game_id: \`rawg_\${game.id}\`,
+      title: game.name,
+      cover_image_url: game.background_image,
+      rating: game.rating,
+      released: game.released,
+      genres: game.genres ? game.genres.map(g => g.name).join(', ') : ''
+    }));
+    
+    res.json(formatted);
+  } catch (err) {
+    console.error('External recommendations error:', err);
+    res.status(500).json({ error: 'Failed to get external recommendations' });
   }
 });
 

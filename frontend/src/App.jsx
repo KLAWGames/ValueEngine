@@ -5,7 +5,8 @@ import Dashboard from './views/Dashboard';
 import Ledger from './views/Ledger';
 import PairwiseEngine from './views/PairwiseEngine';
 import Subscriptions from './views/Subscriptions';
-import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Settings, Clock, PlusCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import RecommendationView from './views/RecommendationView';
+import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Settings, Clock, PlusCircle, ArrowLeft, CheckCircle2, Compass } from 'lucide-react';
 
 function App() {
   const [token, setToken] = useState(() => {
@@ -253,6 +254,7 @@ function App() {
               token={token} 
               games={games} 
               onRefresh={fetchGames}
+              onNavigate={setActiveTab}
             />
           )}
           {activeTab === 'subscriptions' && (
@@ -262,6 +264,9 @@ function App() {
               games={games}
               onRefresh={() => { fetchSubscriptions(); fetchGames(); }}
             />
+          )}
+          {activeTab === 'recommendations' && (
+            <RecommendationView token={token} games={games} />
           )}
           {activeTab === 'settings' && (
             <div className="glass-panel settings-view" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
@@ -355,6 +360,14 @@ function App() {
           </div>
 
           <div 
+            className={`tab-item ${activeTab === 'recommendations' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recommendations')}
+          >
+            <Compass size={20} />
+            <span>Oracle</span>
+          </div>
+
+          <div 
             className={`tab-item ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => setActiveTab('settings')}
           >
@@ -398,6 +411,7 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
   const [selectedGameId, setSelectedGameId] = useState('');
   const [hoursToLog, setHoursToLog] = useState('1.0');
   const [logDate, setLogDate] = useState(() => new Date().toISOString().substring(0, 10));
+  const [mood, setMood] = useState('');
   const [logging, setLogging] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -429,8 +443,21 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
         })
       });
 
+      if (mood) {
+        await fetch(`/api/moods/log`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            mood_tag: mood
+          })
+        });
+      }
+
       if (res.ok) {
-        setSuccessMsg('Hours logged successfully!');
+        setSuccessMsg('Time & mood logged successfully!');
         if (onRefresh) onRefresh();
         setTimeout(() => {
           setSuccessMsg('');
@@ -611,6 +638,22 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
                       required 
                     />
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">How did you feel before playing?</label>
+                  <select 
+                    className="form-input" 
+                    value={mood} 
+                    onChange={e => setMood(e.target.value)}
+                  >
+                    <option value="">-- Optional: Select Mood --</option>
+                    <option value="Relaxed">Relaxed / Unwinding</option>
+                    <option value="Challenged">Wanting a challenge</option>
+                    <option value="Social">Feeling Social</option>
+                    <option value="Bored">Bored / Killing time</option>
+                    <option value="Stressed">Stressed / Needing escape</option>
+                  </select>
                 </div>
 
                 <button 

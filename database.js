@@ -121,6 +121,33 @@ const initDb = async () => {
         game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
         category_id TEXT REFERENCES categories(category_id) ON DELETE CASCADE,
         PRIMARY KEY (game_id, category_id)
+      );`,
+      `CREATE TABLE IF NOT EXISTS player_mood_logs (
+        mood_log_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        mood_tag TEXT NOT NULL,
+        intended_play_mode TEXT,
+        notes TEXT,
+        logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS game_churn_events (
+        churn_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        from_game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        to_game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        reason_category TEXT NOT NULL,
+        comments TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS qualitative_pillar_reviews (
+        review_id TEXT PRIMARY KEY,
+        game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        pillar_name TEXT NOT NULL,
+        rating INTEGER,
+        reason_text TEXT,
+        was_expected BOOLEAN DEFAULT 0,
+        is_top_pillar BOOLEAN DEFAULT 0,
+        UNIQUE(game_id, pillar_name)
       );`
     ];
 
@@ -134,6 +161,14 @@ const initDb = async () => {
     } catch (e) { /* ignore if exists */ }
     try {
       await client.execute('ALTER TABLE users ADD COLUMN reset_token_expires_at DATETIME');
+    } catch (e) { /* ignore if exists */ }
+
+    // Safely attempt to add new columns to qualitative_profiles table
+    try {
+      await client.execute('ALTER TABLE qualitative_profiles ADD COLUMN controls_ui INTEGER DEFAULT 5');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await client.execute('ALTER TABLE qualitative_profiles ADD COLUMN value_satisfaction INTEGER DEFAULT 5');
     } catch (e) { /* ignore if exists */ }
 
     // Seed standard genre tags
