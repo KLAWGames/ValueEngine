@@ -1108,10 +1108,11 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
 
     // 3. Log match
     const matchId = crypto.randomUUID();
+    const finalChosenGameId = chosen_game_id === 'neither' ? null : chosen_game_id;
     await db.query(`
       INSERT INTO pairwise_matches (match_id, user_id, game_a_id, game_b_id, chosen_game_id, prompt_type)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [matchId, req.user.userId, game_a_id, game_b_id, chosen_game_id, promptType]);
+    `, [matchId, req.user.userId, game_a_id, game_b_id, finalChosenGameId, promptType]);
 
     // 4. Update qualitative profiles dynamically
     if (chosen_game_id !== 'neither') {
