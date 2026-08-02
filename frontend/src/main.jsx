@@ -41,7 +41,7 @@ class ErrorBoundary extends Component {
             onClick={() => {
               localStorage.removeItem('token');
               localStorage.removeItem('user');
-              window.location.href = '/';
+              window.location.href = '/?t=' + new Date().getTime();
             }}
             style={{
               padding: '12px 24px',
