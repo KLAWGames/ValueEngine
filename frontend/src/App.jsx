@@ -116,6 +116,42 @@ function App() {
           // If first launch, show check-in to orient user
           setLoginPrompt('daily');
         }
+      // Auto-migrate any offline/localStorage games created during Phase 3 to Turso cloud
+      const ldbGamesRaw = localStorage.getItem('ldb_games');
+      if (ldbGamesRaw) {
+        try {
+          const ldbGames = JSON.parse(ldbGamesRaw);
+          if (Array.isArray(ldbGames) && ldbGames.length > 0) {
+            console.log('Found browser localStorage games. Syncing to Turso cloud...', ldbGames);
+            Promise.all(
+              ldbGames.map(g => 
+                fetch('/api/games', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                    title: g.title,
+                    acquisition_type: g.acquisition_type || 'retail',
+                    subscription_id: g.subscription_id || null,
+                    base_cost: g.base_cost || 0,
+                    total_hours: g.overall_hours || 0,
+                    unplayed: g.unplayed || false,
+                    has_opinion: g.has_opinion !== undefined ? g.has_opinion : true
+                  })
+                })
+              )
+            ).then(() => {
+              localStorage.removeItem('ldb_games');
+              localStorage.removeItem('ldb_play_logs');
+              localStorage.removeItem('ldb_qualitative_profiles');
+              fetchGames();
+            });
+          }
+        } catch (e) {
+          console.error('Failed to auto-migrate browser games:', e);
+        }
       }
     }
   }, [token]);
