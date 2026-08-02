@@ -19,12 +19,8 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const url = process.env.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
-
-if (!url) {
-  console.warn('⚠️ WARNING: TURSO_DATABASE_URL is not defined. Database operations will fail.');
-}
+const url = process.env.TURSO_DATABASE_URL || 'libsql://value-engine-klawgames.aws-us-west-2.turso.io';
+const authToken = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODU2ODE2NTgsImlkIjoiMDE5ZmMyZWItNjcwMS03MDgzLWEzMmItMmJmMDBiZTI5OWY5Iiwia2lkIjoiY3dNOU5xakFyMmFhYVZCaFd6MDNPQ05vR1JtTm9xZmNwZjVVZ3VCWV92USIsInJpZCI6ImY3NjM2OTU2LWIxYmItNDhlNC1hZmZkLTk4NDk2YjQ4NDc1MCJ9.mhSGS0tAbhgvYT7v1dXuJqikhIijD88ri8ovMwDs4YkxIMejWfW7BMikKlRSXmxWm_H3LyRC6ECDMRTXKbkVBQ';
 
 const client = createClient({
   url,
