@@ -444,7 +444,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error('Get games metrics error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: err.message, stack: String(err.stack) });
   }
 });
 
