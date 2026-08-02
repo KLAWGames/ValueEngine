@@ -497,6 +497,21 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     }
   };
 
+  const handleQualitativeQuestionChange = (key, qId, value) => {
+    setQualitative(prev => {
+      const q = prev[key] || { rating: null, reason_text: '{}', was_expected: false, is_top_pillar: false };
+      let answers = {};
+      try {
+        answers = JSON.parse(q.reason_text || '{}');
+      } catch(e) {}
+      answers[qId] = value;
+      return {
+        ...prev,
+        [key]: { ...q, reason_text: JSON.stringify(answers) }
+      };
+    });
+  };
+
   const handleQualitativeChange = (key, field, val) => {
     setQualitative(prev => ({
       ...prev,
@@ -508,7 +523,51 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   };
 
   // Helper labels for sliders
-  const pillarLabels = {
+  const PILLAR_QUESTIONS = {
+  story: [
+    { id: 'understand', text: 'Did you understand the story?', type: 'radio', options: ['Yes', 'No', 'Somewhat'] },
+    { id: 'impactful', text: 'Was the story impactful to you?', type: 'scale', min: 1, max: 5 },
+    { id: 'pacing', text: 'Was it slow or fast?', type: 'radio', options: ['Slow', 'Average', 'Fast'] }
+  ],
+  multiplayer: [
+    { id: 'coop_pvp', text: 'Is it Co-op or PvP?', type: 'radio', options: ['Co-op', 'PvP', 'Both'] },
+    { id: 'community', text: 'Is the community toxic or friendly?', type: 'scale', min: 1, max: 5 }
+  ],
+  mechanics: [
+    { id: 'intuitive', text: 'Are the controls intuitive?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'depth', text: 'Does the gameplay have good depth/progression?', type: 'scale', min: 1, max: 5 }
+  ],
+  graphics: [
+    { id: 'unique', text: 'Is the art style unique?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'performance', text: 'Are there technical/performance issues?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  challenge: [
+    { id: 'punishing', text: 'Is it punishing or forgiving?', type: 'scale', min: 1, max: 5 },
+    { id: 'reflexes', text: 'Does it require fast reflexes?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  relaxation: [
+    { id: 'chill', text: 'Is it a cozy/chill game?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'podcast', text: 'Can you play it while listening to a podcast?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  pacing: [
+    { id: 'lulls', text: 'Are there frequent lulls?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'constant', text: 'Is the action constant?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  engagement: [
+    { id: 'lose_track', text: 'Do you lose track of time?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'easy_put_down', text: 'Is it easy to put down?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  social: [
+    { id: 'irl_friends', text: 'Do you play with IRL friends?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'comms', text: 'Does it require voice comms?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  stress_intensity: [
+    { id: 'heart_rate', text: 'Does it raise your heart rate?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'exhausting', text: 'Is it mentally exhausting?', type: 'radio', options: ['Yes', 'No'] }
+  ]
+};
+
+const pillarLabels = {
     story: 'Story/Narrative',
     multiplayer: 'Multiplayer',
     social: 'Community/Social',
@@ -847,25 +906,6 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                 </div>
               )}
 
-              {/* Has Opinion Toggle (only in edit modal when game has playtime) */}
-              {activeModal === 'editGame' && !unplayed && (
-                <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                  <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={!hasOpinion}
-                      onChange={(e) => setHasOpinion(!e.target.checked)}
-                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
-                    />
-                    <span style={{ fontWeight: '600', fontSize: '0.95rem', color: '#fff' }}>
-                      I haven't played enough to form an opinion yet
-                    </span>
-                  </label>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '26px' }}>
-                    Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
-                  </p>
-                </div>
-              )}
 
               {/* Status, Surveys, and Categories tags: only available once hours > 0 */}
               {parseFloat(totalHoursInput || 0) > 0 && (
@@ -891,10 +931,10 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                   {parseFloat(totalHoursInput || 0) > 0 && (
                     <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
                       <div style={{ gridColumn: '1 / -1', marginBottom: '4px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
-                            checked={!hasOpinion || recommend === ''}
+                            checked={!hasOpinion}
                             onChange={(e) => {
                               const notEnough = e.target.checked;
                               setHasOpinion(!notEnough);
@@ -902,65 +942,217 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                                 setRecommend('');
                               }
                             }}
-                            style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
+                            style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                           />
-                          <span>I haven't played this enough to formally recommend it yet</span>
+                          <span style={{ fontWeight: '600', fontSize: '0.95rem', color: '#fff' }}>
+                            I haven't played enough to form an opinion yet
+                          </span>
                         </label>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '26px' }}>
+                          Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
+                        </p>
                       </div>
 
                       {hasOpinion && (
-                        <>
-                          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                            <label className="form-label">Would you recommend this game to others?</label>
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                <input
-                                  type="radio"
-                                  name="recommend"
-                                  value="true"
-                                  checked={recommend === 'true'}
-                                  onChange={(e) => {
-                                    setRecommend(e.target.value);
-                                    setHasOpinion(true);
-                                  }}
-                                  style={{ accentColor: 'var(--primary)' }}
-                                />
-                                Yes, definitely
-                              </label>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                <input
-                                  type="radio"
-                                  name="recommend"
-                                  value="false"
-                                  checked={recommend === 'false'}
-                                  onChange={(e) => {
-                                    setRecommend(e.target.value);
-                                    setHasOpinion(true);
-                                  }}
-                                  style={{ accentColor: 'var(--primary)' }}
-                                />
-                                No, not really
-                              </label>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                <input
-                                  type="radio"
-                                  name="recommend"
-                                  value=""
-                                  checked={recommend === ''}
-                                  onChange={(e) => {
-                                    setRecommend('');
-                                    setHasOpinion(false);
-                                  }}
-                                  style={{ accentColor: 'var(--primary)' }}
-                                />
-                                Haven't played enough to decide
-                              </label>
-                            </div>
+                        <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
+                          <label className="form-label">Would you recommend this game to others?</label>
+                          <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                              <input
+                                type="radio"
+                                name="recommend"
+                                value="true"
+                                checked={recommend === 'true'}
+                                onChange={(e) => {
+                                  setRecommend(e.target.value);
+                                }}
+                                style={{ accentColor: 'var(--primary)' }}
+                              />
+                              Yes, definitely
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                              <input
+                                type="radio"
+                                name="recommend"
+                                value="false"
+                                checked={recommend === 'false'}
+                                onChange={(e) => {
+                                  setRecommend(e.target.value);
+                                }}
+                                style={{ accentColor: 'var(--primary)' }}
+                              />
+                              No, not really
+                            </label>
                           </div>
-                        </>
+                        </div>
                       )}
                     </div>
                   )}
+
+              {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed) */}
+              {!unplayed && recommend !== '' && recommend !== null && (
+                <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: 0 }}>
+                      <Sparkles size={16} />
+                      Who is this game for and why?
+                    </h3>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+                      Overall Score: {(() => {
+                        let totalWeightedScore = 0;
+                        let totalMaxWeight = 0;
+                        Object.keys(pillarLabels).forEach(key => {
+                          const p = qualitative[key];
+                          if (p && p.rating !== null && p.rating !== '') {
+                            const r = parseInt(p.rating);
+                            const weight = p.is_top_pillar ? 2 : 1;
+                            totalWeightedScore += (r * weight);
+                            totalMaxWeight += (10 * weight);
+                          }
+                        });
+                        return totalMaxWeight > 0 ? `${Math.round((totalWeightedScore / totalMaxWeight) * 100)}/100` : 'TBD';
+                      })()}
+                    </div>
+                  </div>
+                  
+                  <div className="form-grid" style={{ rowGap: '8px' }}>
+                    {Object.keys(pillarLabels).map(key => {
+                      const pData = qualitative[key] || { rating: null, reason_text: '{}', was_expected: false, is_top_pillar: false };
+                      const isExpanded = expandedPillar === key;
+                      const hasRating = pData.rating !== null && pData.rating !== '';
+                      
+                      let answers = {};
+                      try {
+                        answers = JSON.parse(pData.reason_text || '{}');
+                      } catch(e) {}
+                      
+                      return (
+                        <div key={key} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
+                          <div 
+                            style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? 'rgba(167, 139, 250, 0.1)' : 'transparent' }}
+                            onClick={() => setExpandedPillar(isExpanded ? null : key)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: '600', color: hasRating ? '#fff' : 'var(--text-muted)' }}>{pillarLabels[key]}</span>
+                              {pData.is_top_pillar && <span className="status-badge" style={{ background: 'var(--accent)', color: '#000', fontSize: '0.65rem', padding: '2px 6px' }}>Top Pillar (2x)</span>}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontWeight: 'bold', color: hasRating ? 'var(--primary)' : 'var(--text-muted)' }}>
+                                {hasRating ? `${pData.rating}/10` : 'N/A'}
+                              </span>
+                              <span style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
+                                <ChevronDown size={16} />
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {isExpanded && (
+                            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)' }}>
+                              
+                              <div className="form-group" style={{ marginBottom: '16px' }}>
+                                <label className="form-label">Rating (0-10)</label>
+                                {hasRating && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <input
+                                      type="range"
+                                      min="0"
+                                      max="10"
+                                      className="custom-range-slider"
+                                      style={{ flex: 1 }}
+                                      value={pData.rating}
+                                      onChange={(e) => handleQualitativeChange(key, 'rating', e.target.value)}
+                                    />
+                                    <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right' }}>{pData.rating}/10</span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={answers.impacted_enjoyment === 'true' || answers.impacted_enjoyment === true} 
+                                    onChange={(e) => handleQualitativeQuestionChange(key, 'impacted_enjoyment', e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                                  />
+                                  Did {pillarLabels[key]} impact your overall enjoyment of the game?
+                                </label>
+
+                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={pData.was_expected || false} 
+                                    onChange={(e) => handleQualitativeChange(key, 'was_expected', e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                                  />
+                                  {pillarLabels[key]} was something I was specifically looking for when I chose to play this game.
+                                </label>
+
+                                {PILLAR_QUESTIONS[key]?.map(q => (
+                                  <div key={q.id} style={{ marginLeft: '24px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '6px', color: 'var(--text-secondary)' }}>{q.text}</label>
+                                    {q.type === 'radio' && (
+                                      <div style={{ display: 'flex', gap: '12px' }}>
+                                        {q.options.map(opt => (
+                                          <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
+                                            <input 
+                                              type="radio" 
+                                              name={`${key}_${q.id}`} 
+                                              value={opt} 
+                                              checked={answers[q.id] === opt}
+                                              onChange={(e) => handleQualitativeQuestionChange(key, q.id, e.target.value)}
+                                              style={{ accentColor: 'var(--primary)' }}
+                                            />
+                                            {opt}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {q.type === 'scale' && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <input 
+                                          type="range" 
+                                          min={q.min} 
+                                          max={q.max} 
+                                          value={answers[q.id] || q.min}
+                                          onChange={(e) => handleQualitativeQuestionChange(key, q.id, e.target.value)}
+                                          className="custom-range-slider"
+                                          style={{ width: '150px' }}
+                                        />
+                                        <span style={{ fontSize: '0.85rem' }}>{answers[q.id] || q.min}/{q.max}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+
+                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', marginTop: '8px' }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={pData.is_top_pillar || false} 
+                                    onChange={(e) => handleQualitativeChange(key, 'is_top_pillar', e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+                                  />
+                                  This is one of the Top 3-5 defining pillars for this game. (2x Weight)
+                                </label>
+                                
+                                <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-muted)', marginTop: '8px' }}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={!hasRating} 
+                                    onChange={(e) => handleQualitativeChange(key, 'rating', e.target.checked ? null : 5)}
+                                    style={{ accentColor: 'var(--primary)' }}
+                                  />
+                                  Mark {pillarLabels[key]} as N/A (Does not apply)
+                                </label>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
                   {/* Categories Tags Section */}
                   <div style={{ marginBottom: '20px' }}>
@@ -1045,131 +1237,6 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                         )}
                       </div>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed) */}
-              {!unplayed && (
-                <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: 0 }}>
-                      <Sparkles size={16} />
-                      Qualitative Pillar Deep Dive
-                    </h3>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent)' }}>
-                      Overall Score: {(() => {
-                        let totalWeightedScore = 0;
-                        let totalMaxWeight = 0;
-                        Object.keys(pillarLabels).forEach(key => {
-                          const p = qualitative[key];
-                          if (p && p.rating !== null && p.rating !== '') {
-                            const r = parseInt(p.rating);
-                            const weight = p.is_top_pillar ? 2 : 1;
-                            totalWeightedScore += (r * weight);
-                            totalMaxWeight += (10 * weight);
-                          }
-                        });
-                        return totalMaxWeight > 0 ? `${Math.round((totalWeightedScore / totalMaxWeight) * 100)}/100` : 'TBD';
-                      })()}
-                    </div>
-                  </div>
-                  
-                  <div className="form-grid" style={{ rowGap: '8px' }}>
-                    {Object.keys(pillarLabels).map(key => {
-                      const pData = qualitative[key] || { rating: null, reason_text: '', was_expected: false, is_top_pillar: false };
-                      const isExpanded = expandedPillar === key;
-                      const hasRating = pData.rating !== null && pData.rating !== '';
-                      
-                      return (
-                        <div key={key} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
-                          <div 
-                            style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? 'rgba(167, 139, 250, 0.1)' : 'transparent' }}
-                            onClick={() => setExpandedPillar(isExpanded ? null : key)}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontWeight: '600', color: hasRating ? '#fff' : 'var(--text-muted)' }}>{pillarLabels[key]}</span>
-                              {pData.is_top_pillar && <span className="status-badge" style={{ background: 'var(--accent)', color: '#000', fontSize: '0.65rem', padding: '2px 6px' }}>Top Pillar (2x)</span>}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <span style={{ fontWeight: 'bold', color: hasRating ? 'var(--primary)' : 'var(--text-muted)' }}>
-                                {hasRating ? `${pData.rating}/10` : 'N/A'}
-                              </span>
-                              <span style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'flex' }}>
-                                <ChevronDown size={16} />
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {isExpanded && (
-                            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)' }}>
-                              <div className="form-group" style={{ marginBottom: '16px' }}>
-                                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>Rating (0-10)</span>
-                                  <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                                    <input 
-                                      type="checkbox" 
-                                      checked={!hasRating} 
-                                      onChange={(e) => handleQualitativeChange(key, 'rating', e.target.checked ? null : 5)}
-                                      style={{ accentColor: 'var(--primary)' }}
-                                    />
-                                    Mark N/A
-                                  </label>
-                                </label>
-                                
-                                {hasRating && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <input
-                                      type="range"
-                                      min="0"
-                                      max="10"
-                                      className="custom-range-slider"
-                                      style={{ flex: 1 }}
-                                      value={pData.rating}
-                                      onChange={(e) => handleQualitativeChange(key, 'rating', e.target.value)}
-                                    />
-                                    <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right' }}>{pData.rating}/10</span>
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <div className="form-group" style={{ marginBottom: '16px' }}>
-                                <label className="form-label">What drove this rating?</label>
-                                <textarea 
-                                  className="form-input" 
-                                  rows="2" 
-                                  placeholder="Briefly explain your rating..."
-                                  value={pData.reason_text || ''}
-                                  onChange={(e) => handleQualitativeChange(key, 'reason_text', e.target.value)}
-                                />
-                              </div>
-                              
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                  <input 
-                                    type="checkbox" 
-                                    checked={pData.was_expected || false} 
-                                    onChange={(e) => handleQualitativeChange(key, 'was_expected', e.target.checked)}
-                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                                  />
-                                  This pillar was something I was specifically looking for when I chose to play.
-                                </label>
-                                
-                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                  <input 
-                                    type="checkbox" 
-                                    checked={pData.is_top_pillar || false} 
-                                    onChange={(e) => handleQualitativeChange(key, 'is_top_pillar', e.target.checked)}
-                                    style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
-                                  />
-                                  This is one of the Top 3-5 defining pillars for this game. (2x Weight)
-                                </label>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
                   </div>
                 </div>
               )}

@@ -676,6 +676,11 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
 
     const updatedOverallHours = total_hours !== undefined ? parseFloat(total_hours) : game.overall_hours;
 
+    // Playtime Elo Boost (First time crossing 1 hour)
+    if (updatedOverallHours >= 1 && (game.overall_hours || 0) < 1) {
+      newElo += 25;
+    }
+
     // Dynamic Score_100 calculation based on pillars
     let computedScore100 = game.score_100;
     if (qualitative) {
@@ -901,11 +906,26 @@ app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
     `, [logId, id, hours, formattedDate]);
 
     if (addToTotal === true || addToTotal === 'true') {
+      const updatedOverallHours = (gameRes.rows[0].overall_hours || 0) + hours;
+      let eloBoost = 0;
+
+      // Playtime Elo Boost (First time crossing 1 hour)
+      if (updatedOverallHours >= 1 && (gameRes.rows[0].overall_hours || 0) < 1) {
+        eloBoost += 25;
+      }
+
+      // Session Elo Boost (First time reaching 3rd session)
+      const logCountRes = await db.query('SELECT COUNT(*) as log_count FROM play_logs WHERE game_id = $1', [id]);
+      const totalLogs = parseInt(logCountRes.rows[0].log_count);
+      if (totalLogs === 3) {
+        eloBoost += 25;
+      }
+
       await db.query(`
         UPDATE games 
-        SET overall_hours = overall_hours + $1, unplayed = 0
-        WHERE game_id = $2
-      `, [hours, id]);
+        SET overall_hours = overall_hours + $1, unplayed = 0, elo_rating = elo_rating + $2
+        WHERE game_id = $3
+      `, [hours, eloBoost, id]);
     }
 
     const isRotationBoost = is_rotation_boost === true || is_rotation_boost === 'true';
@@ -985,6 +1005,7 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
         AND unplayed = FALSE
         AND overall_hours > 0
         AND has_opinion = TRUE
+        AND NOT (overall_hours < 1 AND elo_rating < 1200)
         ${modeFilter}
     `, [req.user.userId]);
 
@@ -999,6 +1020,7 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
           AND unplayed = FALSE
           AND overall_hours > 0
           AND has_opinion = TRUE
+          AND NOT (overall_hours < 1 AND elo_rating < 1200)
       `, [req.user.userId]);
     }
 
