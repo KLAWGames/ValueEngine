@@ -386,8 +386,8 @@ function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
     );
   }
 
-  const profileA = getQualitativeProfile(match.gameA.game_id);
-  const profileB = getQualitativeProfile(match.gameB.game_id);
+  const profileA = match ? getQualitativeProfile(match.gameA.game_id) : null;
+  const profileB = match ? getQualitativeProfile(match.gameB.game_id) : null;
 
   const renderPillars = (profile, isLeft) => {
     if (!profile) return null;
