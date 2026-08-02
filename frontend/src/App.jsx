@@ -8,7 +8,14 @@ import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Sett
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || 'null'));
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      return (stored && stored !== 'undefined') ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [activeTab, setActiveTab] = useState('dashboard');
   
   const [games, setGames] = useState([]);
