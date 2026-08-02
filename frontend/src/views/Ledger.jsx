@@ -654,7 +654,7 @@ const pillarLabels = {
                 <div className="game-card-header">
                   <h3 className="game-card-title">{game.title}</h3>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {game.unplayed ? (
+                    {game.unplayed && game.total_hours === 0 ? (
                       <span className="status-badge unplayed">Unplayed</span>
                     ) : (
                       game.status && game.status !== 'playing' && (
@@ -713,7 +713,9 @@ const pillarLabels = {
                 <div className="game-card-stats">
                   <div className="sub-stat">
                     <span className="sub-stat-label">Hours Logged</span>
-                    <span className="sub-stat-value">{game.total_hours.toFixed(1)}h</span>
+                    <span className="sub-stat-value" style={game.total_hours > 0 && game.total_hours < 1 ? { color: '#f87171' } : {}}>
+                      {game.total_hours.toFixed(1)}h
+                    </span>
                   </div>
                   <div className="sub-stat">
                     <span className="sub-stat-label">Value CPH</span>
