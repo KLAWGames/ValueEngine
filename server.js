@@ -1675,15 +1675,15 @@ app.get('/api/recommendations/external', authenticateToken, async (req, res) => 
       return res.status(500).json({ error: 'RAWG API key missing in environment' });
     }
     
-    let rawgUrl = \`https://api.rawg.io/api/games?key=\${process.env.RAWG_API_KEY}&page_size=5&ordering=-rating\`;
+    let rawgUrl = `https://api.rawg.io/api/games?key=${process.env.RAWG_API_KEY}&page_size=5&ordering=-rating`;
     
     if (tags) {
-      rawgUrl += \`&tags=\${encodeURIComponent(tags.toLowerCase())}\`;
+      rawgUrl += `&tags=${encodeURIComponent(tags.toLowerCase())}`;
     }
     if (mood === 'Relaxed' || mood === 'Cozy') {
-      rawgUrl += \`&tags=relaxing,atmospheric\`;
+      rawgUrl += `&tags=relaxing,atmospheric`;
     } else if (mood === 'Challenged' || mood === 'Competitive') {
-      rawgUrl += \`&tags=difficult,souls-like\`;
+      rawgUrl += `&tags=difficult,souls-like`;
     }
 
     const rawgRes = await fetch(rawgUrl);
@@ -1691,7 +1691,7 @@ app.get('/api/recommendations/external', authenticateToken, async (req, res) => 
     const data = await rawgRes.json();
     
     const formatted = data.results.map(game => ({
-      game_id: \`rawg_\${game.id}\`,
+      game_id: `rawg_${game.id}`,
       title: game.name,
       cover_image_url: game.background_image,
       rating: game.rating,
