@@ -43,6 +43,7 @@ function App() {
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+    setShowWelcomeModal(true);
     if (newUser && newUser.login_prompt) {
       setLoginPrompt(newUser.login_prompt);
       sessionStorage.setItem('recency_checked', 'true');
@@ -55,6 +56,7 @@ function App() {
     localStorage.removeItem('user');
     setToken('');
     setUser(null);
+    setShowWelcomeModal(false);
     setGames([]);
     setSubscriptions([]);
   };
@@ -370,7 +372,7 @@ function App() {
         {renderAppBody()}
       </div>
 
-      {showWelcomeModal && (
+      {token && showWelcomeModal && (
         <WelcomeModal
           games={games}
           token={token}
