@@ -62,7 +62,7 @@ function App() {
         setSubscriptionWaste(data.subscription_waste || 0);
         setWasteBreakdown(data.waste_breakdown || []);
       } else {
-        if (res.status === 403) logout();
+        if (res.status === 403 || res.status === 401) logout();
       }
     } catch (e) {
       console.error(e);
