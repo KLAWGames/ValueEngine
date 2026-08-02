@@ -460,9 +460,10 @@ app.get('/api/games', authenticateToken, async (req, res) => {
       const purchasesRes = await db.query('SELECT SUM(cost) as total FROM game_purchases WHERE game_id = $1', [game.game_id]);
       const addonCost = purchasesRes.rows[0].total ? parseFloat(purchasesRes.rows[0].total) : 0.00;
 
-      // 2. Sum up total hours played
-      const logsRes = await db.query('SELECT SUM(hours_played) as total FROM play_logs WHERE game_id = $1', [game.game_id]);
+      // 2. Sum up total hours played & get last played date
+      const logsRes = await db.query('SELECT SUM(hours_played) as total, MAX(logged_date) as last_played FROM play_logs WHERE game_id = $1', [game.game_id]);
       const totalHours = logsRes.rows[0].total ? parseFloat(logsRes.rows[0].total) : 0.00;
+      const lastPlayedAt = logsRes.rows[0].last_played ? logsRes.rows[0].last_played : null;
 
       // 3. Get qualitative profile
       const qualRes = await db.query('SELECT * FROM qualitative_profiles WHERE game_id = $1', [game.game_id]);
@@ -522,11 +523,27 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         amortized_subscription_cost: amortizedSubscriptionCost,
         total_cost: totalCost,
         total_hours: overallHours,
+        last_played_at: lastPlayedAt,
         cph,
         qualitative: qualitativeObj,
         categories
       };
     }));
+
+    // Primary sort: last games played (most recent first)
+    // Secondary sort: last games added (created_at most recent first)
+    gamesWithMetrics.sort((a, b) => {
+      const aPlayed = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
+      const bPlayed = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
+
+      if (aPlayed !== bPlayed) {
+        return bPlayed - aPlayed; // Most recently played first
+      }
+
+      const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bCreated - aCreated; // Most recently added second
+    });
 
     res.json({
       games: gamesWithMetrics,
