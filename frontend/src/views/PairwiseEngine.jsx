@@ -44,7 +44,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
     setErrorMsg('');
     setSortingOutcome(false);
     setSortingResults(null);
-    const played = games.filter(g => !g.unplayed && g.total_hours > 0);
+    const played = games.filter(g => !g.unplayed && g.total_hours > 0 && g.has_opinion);
     if (played.length < 2) {
       setErrorMsg('You need at least 2 played games in your library to start comparisons.');
       return;
@@ -614,7 +614,7 @@ function LongLineSorter({ games, token, onRefresh }) {
   const [selectedGameToMove, setSelectedGameToMove] = useState(null);
 
   // Unsorted inventory (games that have no linear_position yet, and are not currently selected to move)
-  const unsortedGames = games.filter(g => g.linear_position === null && (!selectedGameToMove || g.game_id !== selectedGameToMove.game_id));
+  const unsortedGames = games.filter(g => g.linear_position === null && !g.unplayed && g.has_opinion && (!selectedGameToMove || g.game_id !== selectedGameToMove.game_id));
   
   // Sorted stack (games that have linear_position set)
   const sortedStack = games

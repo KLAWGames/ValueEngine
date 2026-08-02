@@ -17,6 +17,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   const [baseCost, setBaseCost] = useState('0');
   const [totalHoursInput, setTotalHoursInput] = useState('0');
   const [unplayed, setUnplayed] = useState(false);
+  const [hasOpinion, setHasOpinion] = useState(true);
   const [playMode, setPlayMode] = useState('single');
   const [status, setStatus] = useState('playing');
   const [score100, setScore100] = useState('');
@@ -186,7 +187,8 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSubId('');
     setBaseCost('0');
     setTotalHoursInput('0');
-    setUnplayed(false);
+    setUnplayed(true);
+    setHasOpinion(false);
     setPlayMode('single');
     setStatus('playing');
     setScore100('');
@@ -217,6 +219,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setBaseCost(game.base_cost.toString());
     setTotalHoursInput(game.total_hours.toString());
     setUnplayed(game.unplayed || false);
+    setHasOpinion(game.has_opinion !== undefined ? game.has_opinion : true);
     setPlayMode(game.play_mode || 'single');
     setStatus(game.status || 'playing');
     setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
@@ -292,11 +295,10 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
           acquisition_type: acqType,
           subscription_id: acqType === 'subscription' ? subId : null,
           base_cost: acqType === 'subscription' || acqType === 'free' || acqType === 'f2p' ? 0 : parseFloat(baseCost),
-          qualitative,
-          total_hours: parseFloat(totalHoursInput || 0),
-          unplayed,
-          categories: selectedCategories,
-          play_mode: playMode
+          total_hours: 0,
+          unplayed: true,
+          has_opinion: false,
+          play_mode: 'single'
         })
       });
 
@@ -333,7 +335,8 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
           score_100: status !== 'playing' && score100 !== '' ? parseInt(score100) : null,
           recommend: status !== 'playing' && recommend !== '' ? (recommend === 'true') : null,
           categories: selectedCategories,
-          play_mode: playMode
+          play_mode: playMode,
+          has_opinion: hasOpinion
         })
       });
 
@@ -780,43 +783,49 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                   </div>
                 )}
 
-                <div className="form-group">
-                  <label className="form-label">Play Mode</label>
-                  <select
-                    className="form-input form-select"
-                    value={playMode}
-                    onChange={(e) => setPlayMode(e.target.value)}
-                  >
-                    <option value="single">Single Player Only</option>
-                    <option value="multi">Multiplayer Only</option>
-                    <option value="both">Both (Single & Multiplayer)</option>
-                  </select>
-                </div>
+                {activeModal === 'editGame' && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Play Mode</label>
+                      <select
+                        className="form-input form-select"
+                        value={playMode}
+                        onChange={(e) => setPlayMode(e.target.value)}
+                      >
+                        <option value="single">Single Player Only</option>
+                        <option value="multi">Multiplayer Only</option>
+                        <option value="both">Both (Single & Multiplayer)</option>
+                      </select>
+                    </div>
 
-                {activeModal === 'addGame' && (
-                  <div className="form-group">
-                    <label className="form-label">Total Playtime (Hours)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      className="form-input"
-                      value={totalHoursInput}
-                      onChange={(e) => setTotalHoursInput(e.target.value)}
-                      required
-                    />
-                  </div>
+                    <div className="form-group">
+                      <label className="form-label">Total Playtime (Hours)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        className="form-input"
+                        value={totalHoursInput}
+                        onChange={(e) => setTotalHoursInput(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </>
                 )}
               </div>
 
-              {/* Unplayed Toggle (only in add/edit modals when total playtime is 0) */}
-              {parseFloat(totalHoursInput || 0) === 0 && (
+              {/* Unplayed Toggle (only in edit modal when total playtime is 0) */}
+              {activeModal === 'editGame' && parseFloat(totalHoursInput || 0) === 0 && (
                 <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={unplayed}
-                      onChange={(e) => setUnplayed(e.target.checked)}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        setUnplayed(val);
+                        if (val) setHasOpinion(false); // unplayed games have no opinion
+                      }}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                     />
                     <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>
@@ -825,6 +834,26 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                   </label>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '26px' }}>
                     Unplayed games skip qualitative ratings and are excluded from Pairwise Joy matchmaking.
+                  </p>
+                </div>
+              )}
+
+              {/* Has Opinion Toggle (only in edit modal when game has playtime) */}
+              {activeModal === 'editGame' && !unplayed && (
+                <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!hasOpinion}
+                      onChange={(e) => setHasOpinion(!e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+                    />
+                    <span style={{ fontWeight: '600', fontSize: '0.95rem', color: '#fff' }}>
+                      I haven't played enough to form an opinion yet
+                    </span>
+                  </label>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '26px' }}>
+                    Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
                   </p>
                 </div>
               )}

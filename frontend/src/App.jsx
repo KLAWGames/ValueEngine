@@ -4,7 +4,7 @@ import Dashboard from './views/Dashboard';
 import Ledger from './views/Ledger';
 import PairwiseEngine from './views/PairwiseEngine';
 import Subscriptions from './views/Subscriptions';
-import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X } from 'lucide-react';
+import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Settings } from 'lucide-react';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -86,125 +86,223 @@ function App() {
     if (token) {
       fetchGames();
       fetchSubscriptions();
+      
+      const lastOpenStr = localStorage.getItem('last_open_time');
+      const now = Date.now();
+      localStorage.setItem('last_open_time', now.toString());
+      
       const sessionChecked = sessionStorage.getItem('recency_checked');
-      if (!sessionChecked && user && user.login_prompt) {
-        setLoginPrompt(user.login_prompt);
+      if (!sessionChecked) {
         sessionStorage.setItem('recency_checked', 'true');
+        if (lastOpenStr) {
+          const lastOpen = parseInt(lastOpenStr);
+          const diffDays = (now - lastOpen) / (1000 * 60 * 60 * 24);
+          
+          if (diffDays > 8.0) {
+            setLoginPrompt('monthly');
+          } else if (diffDays > 1.5) {
+            setLoginPrompt('weekly');
+          } else if (diffDays > 0.5) { // > 12 hours since last launch
+            setLoginPrompt('daily');
+          }
+        } else {
+          // If first launch, show check-in to orient user
+          setLoginPrompt('daily');
+        }
       }
     }
-  }, [token, user]);
+  }, [token]);
 
-  if (!token) {
-    return <Auth onLogin={login} />;
-  }
+  const renderAppBody = () => {
+    if (!token) {
+      return <Auth onLogin={login} />;
+    }
 
-  return (
-    <div className="app-container">
-      <nav className="navbar">
-        <div className="logo">
-          <Gamepad2 size={24} />
-          <span>VALUE ENGINE</span>
+    return (
+      <div className="app-container">
+        {/* Mobile Status Bar Mock */}
+        <div className="mobile-status-bar-mock">
+          <span className="status-time">9:41</span>
+          <div className="mobile-camera-notch"></div>
+          <div className="status-icons">
+            <span>📶</span> <span>🔋</span>
+          </div>
         </div>
-        
-        <div className="nav-links">
+
+        {/* Mobile Header */}
+        <header className="mobile-header">
+          <div className="mobile-logo">
+            <Gamepad2 size={20} />
+            <span>VALUE ENGINE</span>
+          </div>
+          <div className="header-actions">
+            <button
+              onClick={() => setLoginPrompt('weekly')}
+              className="header-action-btn checkin-btn"
+              title="Habit Check-in"
+            >
+              <Flame size={16} />
+            </button>
+            <button 
+              className="header-action-btn logout-btn" 
+              onClick={logout}
+              title="Logout"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="main-content">
+          {activeTab === 'dashboard' && (
+            <Dashboard 
+              games={games} 
+              subscriptions={subscriptions} 
+              subscriptionWaste={subscriptionWaste}
+              wasteBreakdown={wasteBreakdown}
+              onNavigate={setActiveTab}
+              onTriggerEditGame={(game) => {
+                setEditGameOnLoad(game);
+                setActiveTab('ledger');
+              }}
+              token={token}
+              onRefresh={fetchGames}
+            />
+          )}
+          {activeTab === 'ledger' && (
+            <Ledger 
+              token={token} 
+              games={games} 
+              subscriptions={subscriptions} 
+              onRefresh={fetchGames}
+              editGameOnLoad={editGameOnLoad}
+              onClearEditGameOnLoad={() => setEditGameOnLoad(null)}
+            />
+          )}
+          {activeTab === 'pairwise' && (
+            <PairwiseEngine 
+              token={token} 
+              games={games} 
+              onRefresh={fetchGames}
+            />
+          )}
+          {activeTab === 'subscriptions' && (
+            <Subscriptions 
+              token={token} 
+              subscriptions={subscriptions} 
+              games={games}
+              onRefresh={() => { fetchSubscriptions(); fetchGames(); }}
+            />
+          )}
+          {activeTab === 'settings' && (
+            <div className="glass-panel settings-view" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+              <div>
+                <h2 style={{ fontSize: '1.2rem', marginBottom: '4px', color: '#fff' }}>App Settings</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Configure storage, backups, and recommendation engine pooling.</p>
+              </div>
+              
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                <h3 style={{ fontSize: '0.9rem', marginBottom: '10px', color: '#fff' }}>Database & Synchronization</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px' }}>
+                    <div style={{ flex: 1, paddingRight: '8px' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>Turso Cloud Sync</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Connected to value-engine. Auto-sync is active.</div>
+                    </div>
+                    <div style={{ padding: '4px 8px', background: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                      LIVE
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                <h3 style={{ fontSize: '0.9rem', marginBottom: '10px', color: '#fff' }}>Recommendation Pooling</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px' }}>
+                    <div style={{ flex: 1, paddingRight: '12px' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>Pool ELO & Sliders</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Contribute anonymous rating metrics to help train the global recommendation algorithm. No names or costs will be sent.</div>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }} 
+                      defaultChecked={localStorage.getItem('pooling_enabled') === 'true'} 
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        localStorage.setItem('pooling_enabled', enabled);
+                        if (enabled) {
+                          alert('Pooling enabled! Your anonymous game ELOs will be synced to the global dataset.');
+                          const payload = games.filter(g => g.has_opinion).map(g => ({ title: g.title, elo: g.elo_rating }));
+                          console.log('Sending to Google Sheets Webhook:', payload);
+                          fetch('https://script.google.com/macros/s/AKfycbwaxCbGKkm8M2tlzPp-na7cAVRqfkNn_kc0K6yU30p1HoO-5XtZGJY9E2S1B-cTIzpZ/exec', { 
+                            method: 'POST', 
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload) 
+                          }).catch(err => console.error('Webhook error:', err));
+                        }
+                      }} 
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Bottom Tab Bar Navigation */}
+        <nav className="mobile-tab-bar">
           <div 
-            className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+            className={`tab-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
           >
-            <LayoutDashboard size={18} />
-            <span>Dashboard</span>
+            <LayoutDashboard size={20} />
+            <span>Home</span>
           </div>
           
           <div 
-            className={`nav-item ${activeTab === 'ledger' ? 'active' : ''}`}
+            className={`tab-item ${activeTab === 'ledger' ? 'active' : ''}`}
             onClick={() => setActiveTab('ledger')}
           >
-            <Database size={18} />
-            <span>Game Ledger</span>
+            <Database size={20} />
+            <span>Ledger</span>
           </div>
           
           <div 
-            className={`nav-item ${activeTab === 'pairwise' ? 'active' : ''}`}
+            className={`tab-item ${activeTab === 'pairwise' ? 'active' : ''}`}
             onClick={() => setActiveTab('pairwise')}
           >
-            <Flame size={18} />
-            <span>Pairwise Joy</span>
+            <Flame size={20} />
+            <span>Arena</span>
           </div>
           
           <div 
-            className={`nav-item ${activeTab === 'subscriptions' ? 'active' : ''}`}
+            className={`tab-item ${activeTab === 'subscriptions' ? 'active' : ''}`}
             onClick={() => setActiveTab('subscriptions')}
           >
-            <CreditCard size={18} />
-            <span>Subscriptions</span>
+            <CreditCard size={20} />
+            <span>Subs</span>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button
-            onClick={() => setLoginPrompt('weekly')}
-            className="nav-item"
-            style={{ background: 'rgba(167, 139, 250, 0.1)', border: '1px solid rgba(167, 139, 250, 0.3)', color: 'var(--accent)', cursor: 'pointer', padding: '6px 12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+          <div 
+            className={`tab-item ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
           >
-            <Flame size={16} />
-            <span>Habit Check-in</span>
-          </button>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            {user?.email}
-          </span>
-          <button 
-            className="nav-item" 
-            onClick={logout}
-            style={{ background: 'none', border: 'none', font: 'inherit', color: 'var(--danger)', cursor: 'pointer' }}
-          >
-            <LogOut size={18} />
-            <span>Logout</span>
-          </button>
-        </div>
-      </nav>
+            <Settings size={20} />
+            <span>Settings</span>
+          </div>
+        </nav>
+      </div>
+    );
+  };
 
-      <main className="main-content">
-        {activeTab === 'dashboard' && (
-          <Dashboard 
-            games={games} 
-            subscriptions={subscriptions} 
-            subscriptionWaste={subscriptionWaste}
-            wasteBreakdown={wasteBreakdown}
-            onNavigate={setActiveTab}
-            onTriggerEditGame={(game) => {
-              setEditGameOnLoad(game);
-              setActiveTab('ledger');
-            }}
-            token={token}
-            onRefresh={fetchGames}
-          />
-        )}
-        {activeTab === 'ledger' && (
-          <Ledger 
-            token={token} 
-            games={games} 
-            subscriptions={subscriptions} 
-            onRefresh={fetchGames}
-            editGameOnLoad={editGameOnLoad}
-            onClearEditGameOnLoad={() => setEditGameOnLoad(null)}
-          />
-        )}
-        {activeTab === 'pairwise' && (
-          <PairwiseEngine 
-            token={token} 
-            games={games} 
-            onRefresh={fetchGames}
-          />
-        )}
-        {activeTab === 'subscriptions' && (
-          <Subscriptions 
-            token={token} 
-            subscriptions={subscriptions} 
-            games={games}
-            onRefresh={() => { fetchSubscriptions(); fetchGames(); }}
-          />
-        )}
-      </main>
+  return (
+    <div className="device-viewport-wrapper">
+      <div className="device-phone-mockup">
+        {renderAppBody()}
+      </div>
 
       {loginPrompt && (
         <div className="modal-backdrop" style={{ zIndex: 10000 }}>

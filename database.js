@@ -1,8 +1,7 @@
-const { Pool } = require('pg');
+const { createClient } = require('@libsql/client');
 const fs = require('fs');
 const path = require('path');
 
-// Proactively load local .env file if it exists for development setup
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
@@ -12,7 +11,6 @@ if (fs.existsSync(envPath)) {
       const parts = trimmed.split('=');
       const key = parts[0].trim();
       let val = parts.slice(1).join('=').trim();
-      // Unquote value if quoted
       if (val.startsWith('"') && val.endsWith('"')) {
         val = val.substring(1, val.length - 1);
       }
@@ -21,170 +19,134 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const connectionString = process.env.DATABASE_URL;
+const url = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-if (!connectionString) {
-  console.warn('⚠️ WARNING: DATABASE_URL environment variable is not defined. PostgreSQL database operations will fail.');
+if (!url) {
+  console.warn('⚠️ WARNING: TURSO_DATABASE_URL is not defined. Database operations will fail.');
 }
 
-const pool = new Pool({
-  connectionString,
-  // Supabase/Neon require SSL. We reject unauthorized = false to allow self-signed certificates.
-  ssl: connectionString ? { rejectUnauthorized: false } : false
+const client = createClient({
+  url,
+  authToken
 });
 
-// Setup schemas on initialization
 const initDb = async () => {
-  if (!connectionString) return;
+  if (!url) return;
   try {
-    console.log('Connecting to PostgreSQL database and running migrations...');
+    console.log('Connecting to Turso libSQL database and running migrations...');
     
-    // Enable uuid generator extension in Postgres if not already present
-    await pool.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS subscriptions (
-        subscription_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-        name VARCHAR(100) NOT NULL,
-        monthly_cost NUMERIC(6, 2) NOT NULL,
-        is_active BOOLEAN DEFAULT TRUE
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS games (
-        game_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-        title VARCHAR(255) NOT NULL,
-        acquisition_type VARCHAR(50) NOT NULL,
-        subscription_id UUID REFERENCES subscriptions(subscription_id) ON DELETE SET NULL,
-        base_cost NUMERIC(6, 2) DEFAULT 0.00,
+    // Convert schemas from Postgres to SQLite
+    const schemas = [
+      `CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS subscriptions (
+        subscription_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        monthly_cost REAL NOT NULL,
+        cost REAL,
+        billing_cycle TEXT DEFAULT 'monthly',
+        is_active BOOLEAN DEFAULT 1
+      );`,
+      `CREATE TABLE IF NOT EXISTS games (
+        game_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        acquisition_type TEXT NOT NULL,
+        subscription_id TEXT REFERENCES subscriptions(subscription_id) ON DELETE SET NULL,
+        base_cost REAL DEFAULT 0.00,
         elo_rating INTEGER DEFAULT 1200,
         match_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS game_purchases (
-        purchase_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        game_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        description VARCHAR(255) NOT NULL,
-        cost NUMERIC(6, 2) NOT NULL,
-        purchased_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS play_logs (
-        log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        game_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        hours_played NUMERIC(5, 2) NOT NULL,
-        logged_date TIMESTAMP WITH TIME ZONE NOT NULL
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS qualitative_profiles (
-        profile_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        game_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        story INT CHECK (story BETWEEN 0 AND 10),
-        multiplayer INT CHECK (multiplayer BETWEEN 0 AND 10),
-        mechanics INT CHECK (mechanics BETWEEN 0 AND 10),
-        graphics INT CHECK (graphics BETWEEN 0 AND 10),
-        challenge INT CHECK (challenge BETWEEN 0 AND 10),
-        relaxation INT CHECK (relaxation BETWEEN 0 AND 10),
-        pacing INT CHECK (pacing BETWEEN 0 AND 10)
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS pairwise_matches (
-        match_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-        game_a_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        game_b_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        chosen_game_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    // --- Schema Migration Section ---
-    console.log('Running database schema updates...');
-    
-    // 1. Add status and unplayed columns to games table
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'playing';");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS score_100 INT CHECK (score_100 BETWEEN 0 AND 100) NULL;");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS recommend BOOLEAN NULL;");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS unplayed BOOLEAN DEFAULT FALSE;");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS overall_hours NUMERIC(6, 2) DEFAULT 0.00;");
-    await pool.query(`
-      UPDATE games g 
-      SET overall_hours = COALESCE((SELECT SUM(hours_played) FROM play_logs WHERE game_id = g.game_id), 0.00)
-      WHERE overall_hours IS NULL OR overall_hours = 0.00;
-    `);
-
-    // 2. Add new split qualitative pillars to qualitative_profiles
-    await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS engagement INT CHECK (engagement BETWEEN 0 AND 10);");
-    await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS social INT CHECK (social BETWEEN 0 AND 10);");
-    await pool.query("ALTER TABLE qualitative_profiles ADD COLUMN IF NOT EXISTS stress_intensity INT CHECK (stress_intensity BETWEEN 0 AND 10);");
-    await pool.query("ALTER TABLE pairwise_matches ADD COLUMN IF NOT EXISTS prompt_type VARCHAR(50) DEFAULT 'general';");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS play_mode VARCHAR(50) DEFAULT 'single';");
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS player_moods (
-        mood_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-        mood_type VARCHAR(50) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    await pool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cost NUMERIC(6, 2);");
-    await pool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(20) DEFAULT 'monthly';");
-    await pool.query("UPDATE subscriptions SET cost = monthly_cost WHERE cost IS NULL;");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS wont_play_again BOOLEAN DEFAULT FALSE;");
-    // 3. Create categories reference table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS categories (
-        category_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(100) UNIQUE NOT NULL
-      );
-    `);
-
-    // 4. Create game-category join mapping table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS game_categories (
-        game_id UUID REFERENCES games(game_id) ON DELETE CASCADE,
-        category_id UUID REFERENCES categories(category_id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'playing',
+        score_100 INTEGER NULL,
+        recommend BOOLEAN NULL,
+        unplayed BOOLEAN DEFAULT 0,
+        overall_hours REAL DEFAULT 0.00,
+        play_mode TEXT DEFAULT 'single',
+        wont_play_again BOOLEAN DEFAULT 0,
+        has_opinion BOOLEAN DEFAULT 1,
+        linear_position INTEGER NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS game_purchases (
+        purchase_id TEXT PRIMARY KEY,
+        game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        description TEXT NOT NULL,
+        cost REAL NOT NULL,
+        purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS play_logs (
+        log_id TEXT PRIMARY KEY,
+        game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        hours_played REAL NOT NULL,
+        logged_date DATETIME NOT NULL
+      );`,
+      `CREATE TABLE IF NOT EXISTS qualitative_profiles (
+        profile_id TEXT PRIMARY KEY,
+        game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        story INTEGER,
+        multiplayer INTEGER,
+        mechanics INTEGER,
+        graphics INTEGER,
+        challenge INTEGER,
+        relaxation INTEGER,
+        pacing INTEGER,
+        engagement INTEGER,
+        social INTEGER,
+        stress_intensity INTEGER
+      );`,
+      `CREATE TABLE IF NOT EXISTS pairwise_matches (
+        match_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        game_a_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        game_b_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        chosen_game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        prompt_type TEXT DEFAULT 'general',
+        exercise_type TEXT DEFAULT 'pairwise',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS player_moods (
+        mood_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        mood_type TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS categories (
+        category_id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL
+      );`,
+      `CREATE TABLE IF NOT EXISTS game_categories (
+        game_id TEXT REFERENCES games(game_id) ON DELETE CASCADE,
+        category_id TEXT REFERENCES categories(category_id) ON DELETE CASCADE,
         PRIMARY KEY (game_id, category_id)
-      );
-    `);
+      );`
+    ];
 
-    // 5. Seed standard genre tags
-    await pool.query(`
-      INSERT INTO categories (name) VALUES 
-        ('RPG'), ('Action'), ('Adventure'), ('Shooter'), ('Platformer'), 
-        ('Roguelike'), ('Simulation'), ('Strategy'), ('Puzzle'), ('Survival'), 
-        ('Sports'), ('Fighting'), ('Metroidvania'), ('Indie'), ('MMO'), 
-        ('Soulslike'), ('Horror'), ('Sandbox'), ('Card & Board'), ('Racing')
-      ON CONFLICT (name) DO NOTHING;
-    `);
+    for (const sql of schemas) {
+      await client.execute(sql);
+    }
 
-    // 6. Value Engine 2.0 updates
-    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;");
-    await pool.query("ALTER TABLE games ADD COLUMN IF NOT EXISTS linear_position INTEGER;");
-    await pool.query("ALTER TABLE pairwise_matches ADD COLUMN IF NOT EXISTS exercise_type VARCHAR(20) DEFAULT 'pairwise';");
+    // Seed standard genre tags
+    const seedGenres = [
+      'RPG', 'Action', 'Adventure', 'Shooter', 'Platformer', 
+      'Roguelike', 'Simulation', 'Strategy', 'Puzzle', 'Survival', 
+      'Sports', 'Fighting', 'Metroidvania', 'Indie', 'MMO', 
+      'Soulslike', 'Horror', 'Sandbox', 'Card & Board', 'Racing'
+    ];
+    for (const genre of seedGenres) {
+      await client.execute({
+        sql: `INSERT INTO categories (category_id, name) VALUES (?, ?) ON CONFLICT (name) DO NOTHING`,
+        args: [require('crypto').randomUUID(), genre]
+      });
+    }
 
-    console.log('PostgreSQL database schemas verified/created successfully.');
+    console.log('Turso libSQL database schemas verified/created successfully.');
   } catch (err) {
     console.error('Failed to initialize database tables:', err);
   }
@@ -193,6 +155,43 @@ const initDb = async () => {
 initDb();
 
 module.exports = {
-  query: (text, params) => pool.query(text, params),
-  pool
+  // Translate Postgres $1 positional queries to SQLite ? queries
+  query: async (text, params = []) => {
+    let sqliteParams = [];
+    let sqliteText = text;
+    
+    if (params && params.length > 0) {
+      sqliteText = text.replace(/\$(\d+)/g, (match, p1) => {
+        const paramIndex = parseInt(p1, 10) - 1;
+        sqliteParams.push(params[paramIndex]);
+        return '?';
+      });
+    }
+    
+    // Replace ILIKE with LIKE
+    const fixedText = sqliteText.replace(/ ILIKE /g, ' LIKE ');
+
+    try {
+      const result = await client.execute({ sql: fixedText, args: sqliteParams });
+      
+      // Some routines expect rows array mapping directly
+      const rows = result.rows.map(row => {
+        const obj = {};
+        for (const key of Object.keys(row)) {
+          // Keep numeric behavior similar to pg
+          obj[key] = row[key];
+        }
+        return obj;
+      });
+
+      return {
+        rows: rows,
+        rowCount: rows.length
+      };
+    } catch (e) {
+      console.error('Database query error:', e, '\\nSQL:', fixedText, '\\nParams:', sqliteParams);
+      throw e;
+    }
+  },
+  client
 };

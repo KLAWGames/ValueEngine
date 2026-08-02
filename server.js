@@ -448,7 +448,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/games', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, categories, play_mode } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, categories, play_mode, has_opinion } = req.body;
   
   if (!title || !acquisition_type) {
     return res.status(400).json({ error: 'Title and acquisition type are required' });
@@ -461,14 +461,15 @@ app.post('/api/games', authenticateToken, async (req, res) => {
     const finalUnplayed = unplayed === true || unplayed === 'true';
     const initialStatus = finalUnplayed ? 'unplayed' : 'playing';
     const playMode = play_mode || 'single';
+    const finalHasOpinion = has_opinion !== undefined ? (has_opinion === true || has_opinion === 'true') : !finalUnplayed;
 
     const initialHours = total_hours !== undefined ? parseFloat(total_hours) : 0.00;
 
     // 1. Insert Game
     await db.query(`
-      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status, overall_hours, play_mode)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus, initialHours, playMode]);
+      INSERT INTO games (game_id, user_id, title, acquisition_type, subscription_id, base_cost, unplayed, status, overall_hours, play_mode, has_opinion)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `, [gameId, req.user.userId, title, acquisition_type, finalSubId, finalBaseCost, finalUnplayed, initialStatus, initialHours, playMode, finalHasOpinion]);
 
     // 2. Insert Qualitative Profile (default 5 or user custom, expanded to 10 pillars)
     const q = qualitative || {};
@@ -519,7 +520,8 @@ app.post('/api/games', authenticateToken, async (req, res) => {
       subscription_id: finalSubId,
       base_cost: finalBaseCost,
       elo_rating: 1200,
-      match_count: 0
+      match_count: 0,
+      has_opinion: finalHasOpinion
     });
   } catch (err) {
     console.error('Create game error:', err);
@@ -528,7 +530,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/games/:id', authenticateToken, async (req, res) => {
-  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories, play_mode, wont_play_again } = req.body;
+  const { title, acquisition_type, subscription_id, base_cost, qualitative, total_hours, unplayed, status, score_100, recommend, categories, play_mode, wont_play_again, has_opinion } = req.body;
   const { id } = req.params;
 
   try {
@@ -546,6 +548,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
     const finalUnplayed = unplayed !== undefined ? (unplayed === true || unplayed === 'true') : game.unplayed;
     const updatedPlayMode = play_mode || game.play_mode || 'single';
     const updatedWontPlay = wont_play_again !== undefined ? (wont_play_again === true || wont_play_again === 'true') : !!game.wont_play_again;
+    const finalHasOpinion = has_opinion !== undefined ? (has_opinion === true || has_opinion === 'true') : game.has_opinion;
     
     // Status Resolution: Default status to playing if unplayed is turned off, and unplayed if toggled on
     let finalStatus = status || game.status || 'playing';
@@ -577,8 +580,8 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       UPDATE games 
       SET title = $1, acquisition_type = $2, subscription_id = $3, base_cost = $4,
           unplayed = $5, status = $6, score_100 = $7, recommend = $8, elo_rating = $9,
-          overall_hours = $10, play_mode = $11, wont_play_again = $12
-      WHERE game_id = $13 AND user_id = $14
+          overall_hours = $10, play_mode = $11, wont_play_again = $12, has_opinion = $13
+      WHERE game_id = $14 AND user_id = $15
     `, [
       updatedTitle,
       updatedAcq,
@@ -592,6 +595,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       updatedOverallHours,
       updatedPlayMode,
       updatedWontPlay,
+      finalHasOpinion,
       id,
       req.user.userId
     ]);
@@ -862,6 +866,7 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
       WHERE user_id = $1 
         AND unplayed = FALSE
         AND overall_hours > 0
+        AND has_opinion = TRUE
         ${modeFilter}
     `, [req.user.userId]);
 
@@ -875,6 +880,7 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
         WHERE user_id = $1 
           AND unplayed = FALSE
           AND overall_hours > 0
+          AND has_opinion = TRUE
       `, [req.user.userId]);
     }
 

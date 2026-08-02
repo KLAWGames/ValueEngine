@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle } from 'lucide-react';
+import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle, X } from 'lucide-react';
 
 function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, onNavigate, onTriggerEditGame, token, onRefresh }) {
   const [selectedGameId, setSelectedGameId] = useState('');
   const [showFreeGames, setShowFreeGames] = useState(false);
   const [moodTimeline, setMoodTimeline] = useState([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     const fetchTimeline = async () => {
@@ -85,6 +86,108 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleExportShareCard = () => {
+    if (!activeSelectedGame) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 900;
+    const ctx = canvas.getContext('2d');
+    
+    // 1. Background Gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 900);
+    gradient.addColorStop(0, '#0f172a');
+    gradient.addColorStop(0.5, '#1e1b4b');
+    gradient.addColorStop(1, '#3b0764');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 600, 900);
+
+    // 2. Decorative Glowing Circles
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.1)';
+    ctx.beginPath();
+    ctx.arc(100, 200, 250, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(6, 182, 212, 0.08)';
+    ctx.beginPath();
+    ctx.arc(500, 700, 300, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Border Frame
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, 560, 860);
+
+    // 4. Header Logo
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = 'bold 20px "Outfit", sans-serif';
+    ctx.fillText('🎮 VALUE ENGINE WRAPPED', 50, 70);
+
+    // 5. Game Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px "Outfit", sans-serif';
+    ctx.fillText(activeSelectedGame.title.toUpperCase(), 50, 160);
+
+    // 6. Playtime
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px "Inter", sans-serif';
+    ctx.fillText('TOTAL ENTERTAINMENT LOGGED', 50, 240);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 48px "Outfit", sans-serif';
+    ctx.fillText(`${parseFloat(activeSelectedGame.total_hours || activeSelectedGame.overall_hours || 0).toFixed(1)} HOURS`, 50, 295);
+
+    // 7. Value CPH
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px "Inter", sans-serif';
+    ctx.fillText('GAMEPLAY EFFICIENCY (CPH)', 50, 380);
+
+    const gameCph = activeSelectedGame.cph || 0.01;
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 48px "Outfit", sans-serif';
+    ctx.fillText(`$${gameCph.toFixed(2)}/HR`, 50, 435);
+
+    // 8. Benchmarks
+    const coffeeCph = 18.18;
+    const movieCph = 12.00;
+    const coffeeRatio = (coffeeCph / gameCph).toFixed(1);
+    const movieRatio = (movieCph / gameCph).toFixed(1);
+
+    ctx.font = 'italic 18px "Inter", sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('HOW IT COMPARISONS:', 50, 520);
+
+    ctx.font = '600 20px "Inter", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`☕️ ${coffeeRatio}x more cost-efficient than a latte`, 50, 570);
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = '14px "Inter", sans-serif';
+    ctx.fillText(`(Latte benchmark: $18.18/hr vs. $${gameCph.toFixed(2)}/hr)`, 76, 595);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 20px "Inter", sans-serif';
+    ctx.fillText(`🍿 ${movieRatio}x cheaper than movie theater outings`, 50, 650);
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = '14px "Inter", sans-serif';
+    ctx.fillText(`(Theater benchmark: $12.00/hr)`, 76, 675);
+
+    // Joy rating
+    ctx.fillStyle = '#f472b6';
+    ctx.font = 'bold 20px "Outfit", sans-serif';
+    ctx.fillText(`🏆 Arena Joy Rating: ${activeSelectedGame.elo_rating || 1200} ELO`, 50, 750);
+
+    // Footer
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '12px "Inter", sans-serif';
+    ctx.fillText('Value Engine & Game Ledger © 2026', 50, 840);
+    ctx.fillText('Calculated using amortization allocation logic.', 50, 858);
+
+    // Trigger download
+    const link = document.createElement('a');
+    link.download = `${activeSelectedGame.title.replace(/\s+/g, '_')}_cph_card.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   // Library Completeness Diagnostics
@@ -485,7 +588,16 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
         </div>
 
         <div className="statement-card glass-panel" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', marginBottom: '18px', padding: '12px 16px' }}>
-          <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-secondary)' }}>{renderComparisonStatement(activeSelectedGame)}</p>
+          <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-secondary)', marginBottom: activeSelectedGame && activeSelectedGame.total_hours > 0 ? '8px' : '0' }}>{renderComparisonStatement(activeSelectedGame)}</p>
+          {activeSelectedGame && activeSelectedGame.total_hours > 0 && (
+            <button
+              className="btn btn-secondary"
+              style={{ width: '100%', margin: 0, padding: '6px 12px', fontSize: '0.8rem', background: 'rgba(167, 139, 250, 0.1)', borderColor: 'rgba(167, 139, 250, 0.2)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              onClick={() => setShowShareModal(true)}
+            >
+              <Trophy size={14} /> Generate Value Share Card
+            </button>
+          )}
         </div>
 
         <div className="benchmarks-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -509,6 +621,78 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
             })}
         </div>
       </div>
+
+      {showShareModal && activeSelectedGame && (
+        <div className="modal-backdrop" style={{ zIndex: 10000 }}>
+          <div className="glass-panel modal-content" style={{ maxWidth: '420px', width: '100%', padding: '20px', textAlign: 'center' }}>
+            <div className="modal-title-row" style={{ marginBottom: '12px' }}>
+              <h2 style={{ fontSize: '1.25rem', color: '#fff' }}>Share Card Generated!</h2>
+              <button className="modal-close-btn" onClick={() => setShowShareModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Poster Preview */}
+            <div 
+              style={{ 
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #3b0764 100%)', 
+                borderRadius: '16px', 
+                padding: '24px 20px', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                textAlign: 'left', 
+                position: 'relative', 
+                marginBottom: '20px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Background glows */}
+              <div style={{ position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(168, 85, 247, 0.1)', top: '-40px', left: '-40px', filter: 'blur(30px)', pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(6, 182, 212, 0.08)', bottom: '-40px', right: '-40px', filter: 'blur(30px)', pointerEvents: 'none' }} />
+
+              <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '16px', letterSpacing: '1px' }}>🎮 VALUE ENGINE WRAPPED</div>
+              <h1 style={{ fontSize: '1.4rem', fontWeight: '900', color: '#fff', marginBottom: '20px', lineHeight: '1.2', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{activeSelectedGame.title.toUpperCase()}</h1>
+
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>TOTAL PLAYTIME LOGGED</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#38bdf8' }}>{parseFloat(activeSelectedGame.total_hours || activeSelectedGame.overall_hours || 0).toFixed(1)} HRS</div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>GAMEPLAY VALUE (CPH)</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#4ade80' }}>${parseFloat(activeSelectedGame.cph || 0).toFixed(2)}/HR</div>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '12px' }}>ECONOMIC ADVANTAGE</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '0.9rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>☕️</span>
+                    <span><strong>{(18.18 / (activeSelectedGame.cph || 0.01)).toFixed(1)}x</strong> more efficient than Starbucks</span>
+                  </div>
+                  <div style={{ fontSize: '0.9rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🍿</span>
+                    <span><strong>{(12.00 / (activeSelectedGame.cph || 0.01)).toFixed(1)}x</strong> cheaper than movie tickets</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#f472b6' }}>🏆 Joy Arena ELO: {activeSelectedGame.elo_rating || 1200}</span>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Value Engine</span>
+              </div>
+            </div>
+
+            <button 
+              className="btn btn-primary" 
+              style={{ width: '100%', margin: 0 }}
+              onClick={handleExportShareCard}
+            >
+              📥 Download Card Image
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
