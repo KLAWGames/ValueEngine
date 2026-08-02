@@ -472,7 +472,7 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
         </div>
       )}
 
-      <div className="split-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))' }}>
+      <div className="split-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' }}>
         <div className="glass-panel" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', margin: 0, fontWeight: 'bold' }}>
@@ -523,7 +523,7 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px', marginBottom: '24px' }}>
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', marginBottom: '12px', fontWeight: 'bold' }}>

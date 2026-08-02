@@ -160,7 +160,7 @@ function Subscriptions({ token, subscriptions, games = [], onRefresh }) {
           <p style={{ color: 'var(--text-secondary)' }}>No subscription services registered. Add a service (like Xbox Game Pass or PlayStation Plus) to begin cataloging subscription games!</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '24px' }}>
           {subscriptions.map(sub => {
             const subGames = games.filter(g => g.subscription_id === sub.subscription_id);
             const totalHours = subGames.reduce((acc, g) => acc + parseFloat(g.overall_hours || g.total_hours || 0), 0);
