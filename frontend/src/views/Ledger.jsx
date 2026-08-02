@@ -885,51 +885,95 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                     </select>
                   </div>
 
-                  {/* Finished surveys */}
+                  {/* Ratings / Surveys section */}
                   {status !== 'playing' && parseFloat(totalHoursInput || 0) > 0 && (
                     <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
-                      <div className="form-group">
-                        <label className="form-label">Final Score (0-100)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          className="form-input"
-                          value={score100}
-                          onChange={(e) => setScore100(e.target.value)}
-                          placeholder="e.g. 90"
-                          required
-                        />
+                      <div style={{ gridColumn: '1 / -1', marginBottom: '4px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          <input
+                            type="checkbox"
+                            checked={!hasOpinion || (score100 === '' && recommend === '')}
+                            onChange={(e) => {
+                              const notEnough = e.target.checked;
+                              setHasOpinion(!notEnough);
+                              if (notEnough) {
+                                setScore100('');
+                                setRecommend('');
+                              }
+                            }}
+                            style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
+                          />
+                          <span>I haven't played this enough to rate it yet</span>
+                        </label>
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Would you recommend this?</label>
-                        <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+
+                      {hasOpinion && (score100 !== '' || recommend !== '' || true) && (
+                        <>
+                          <div className="form-group">
+                            <label className="form-label">Final Score (0-100)</label>
                             <input
-                              type="radio"
-                              name="recommend"
-                              value="true"
-                              checked={recommend === 'true'}
-                              onChange={(e) => setRecommend(e.target.value)}
-                              style={{ accentColor: 'var(--primary)' }}
-                              required
+                              type="number"
+                              min="0"
+                              max="100"
+                              className="form-input"
+                              value={score100}
+                              onChange={(e) => {
+                                setScore100(e.target.value);
+                                setHasOpinion(true);
+                              }}
+                              placeholder="e.g. 90 (Optional)"
                             />
-                            Yes, recommend
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            <input
-                              type="radio"
-                              name="recommend"
-                              value="false"
-                              checked={recommend === 'false'}
-                              onChange={(e) => setRecommend(e.target.value)}
-                              style={{ accentColor: 'var(--primary)' }}
-                              required
-                            />
-                            No, do not recommend
-                          </label>
-                        </div>
-                      </div>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Would you recommend this?</label>
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                <input
+                                  type="radio"
+                                  name="recommend"
+                                  value="true"
+                                  checked={recommend === 'true'}
+                                  onChange={(e) => {
+                                    setRecommend(e.target.value);
+                                    setHasOpinion(true);
+                                  }}
+                                  style={{ accentColor: 'var(--primary)' }}
+                                />
+                                Yes
+                              </label>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                <input
+                                  type="radio"
+                                  name="recommend"
+                                  value="false"
+                                  checked={recommend === 'false'}
+                                  onChange={(e) => {
+                                    setRecommend(e.target.value);
+                                    setHasOpinion(true);
+                                  }}
+                                  style={{ accentColor: 'var(--primary)' }}
+                                />
+                                No
+                              </label>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                <input
+                                  type="radio"
+                                  name="recommend"
+                                  value=""
+                                  checked={recommend === ''}
+                                  onChange={(e) => {
+                                    setRecommend('');
+                                    setScore100('');
+                                    setHasOpinion(false);
+                                  }}
+                                  style={{ accentColor: 'var(--primary)' }}
+                                />
+                                Haven't played enough to rate
+                              </label>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
