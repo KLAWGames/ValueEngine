@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Calendar, DollarSign, Edit, Trash2, BookOpen, Star, Sparkles, X, ThumbsUp, CheckCircle, HelpCircle } from 'lucide-react';
+import { Plus, Search, Calendar, DollarSign, Edit, Trash2, BookOpen, Star, Sparkles, X, ThumbsUp, CheckCircle, HelpCircle, ChevronDown } from 'lucide-react';
 
 function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClearEditGameOnLoad, openAddGameOnLoad, onClearOpenAddGameOnLoad }) {
   // Filters & Search
