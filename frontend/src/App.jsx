@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Auth from './views/Auth';
+import ResetPassword from './views/ResetPassword';
 import Dashboard from './views/Dashboard';
 import Ledger from './views/Ledger';
 import PairwiseEngine from './views/PairwiseEngine';
@@ -17,6 +18,10 @@ function App() {
     }
   });
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [resetToken, setResetToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('resetToken');
+  });
   
   const [games, setGames] = useState([]);
   const [subscriptionWaste, setSubscriptionWaste] = useState(0);
@@ -158,7 +163,16 @@ function App() {
     }
   }, [token]);
 
+  const handleResetComplete = () => {
+    setResetToken(null);
+    window.history.pushState({}, '', '/');
+  };
+
   const renderAppBody = () => {
+    if (resetToken) {
+      return <ResetPassword resetToken={resetToken} onComplete={handleResetComplete} />;
+    }
+
     if (!token) {
       return <Auth onLogin={login} />;
     }

@@ -3,6 +3,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const db = require('./database');
 
 const app = express();
@@ -11,6 +12,14 @@ const JWT_SECRET = 'entertainment_value_secret_key_2026';
 
 app.use(cors());
 app.use(express.json());
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 // Request logger middleware
 app.use((req, res, next) => {
@@ -115,6 +124,88 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Internal server error during login' });
+  }
+});
+
+app.post('/api/auth/request-password-reset', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const formattedEmail = email.toLowerCase().trim();
+    const checkRes = await db.query('SELECT * FROM users WHERE email = $1', [formattedEmail]);
+    const user = checkRes.rows[0];
+
+    if (!user) {
+      // Return 200 to prevent email enumeration
+      return res.json({ message: 'If an account exists, a reset link has been sent.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    await db.query(
+      'UPDATE users SET reset_token = $1, reset_token_expires_at = $2 WHERE email = $3',
+      [resetToken, expiresAt, formattedEmail]
+    );
+
+    // If deployed on Vercel, the origin might not match localhost. We construct a dynamic link
+    const origin = req.headers.origin || req.headers.referer || 'http://localhost:5000';
+    // Clean up trailing slash
+    const cleanOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
+    
+    const resetLink = `${cleanOrigin}/?resetToken=${resetToken}`;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@entertainmentvalue.com',
+      to: formattedEmail,
+      subject: 'Value Engine: Password Reset Request',
+      text: `You requested a password reset. Click the link below to reset your password:\n\n${resetLink}\n\nThis link will expire in 1 hour.`
+    };
+
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      await transporter.sendMail(mailOptions);
+    } else {
+      console.log('EMAIL_USER or EMAIL_PASS not set. Logging reset link:', resetLink);
+    }
+
+    res.json({ message: 'If an account exists, a reset link has been sent.' });
+  } catch (err) {
+    console.error('Request password reset error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+
+  try {
+    const checkRes = await db.query('SELECT * FROM users WHERE reset_token = $1', [token]);
+    const user = checkRes.rows[0];
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    if (new Date() > new Date(user.reset_token_expires_at)) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const passwordHash = bcrypt.hashSync(newPassword, salt);
+
+    await db.query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires_at = NULL WHERE user_id = $2',
+      [passwordHash, user.user_id]
+    );
+
+    res.json({ message: 'Password has been successfully reset' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

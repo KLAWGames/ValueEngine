@@ -128,6 +128,14 @@ const initDb = async () => {
       await client.execute(sql);
     }
 
+    // Safely attempt to add new columns to users table
+    try {
+      await client.execute('ALTER TABLE users ADD COLUMN reset_token TEXT');
+    } catch (e) { /* ignore if exists */ }
+    try {
+      await client.execute('ALTER TABLE users ADD COLUMN reset_token_expires_at DATETIME');
+    } catch (e) { /* ignore if exists */ }
+
     // Seed standard genre tags
     const seedGenres = [
       'RPG', 'Action', 'Adventure', 'Shooter', 'Platformer', 
