@@ -393,36 +393,40 @@ function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
     if (!profile) return null;
     const pillars = [
       { key: 'story', label: 'Story' },
+      { key: 'multiplayer', label: 'Multiplayer' },
+      { key: 'social', label: 'Community' },
       { key: 'mechanics', label: 'Mechanics' },
       { key: 'graphics', label: 'Graphics' },
       { key: 'challenge', label: 'Difficulty' },
       { key: 'relaxation', label: 'Relaxation' },
-      { key: 'pacing', label: 'Pacing' },
-      { key: 'engagement', label: 'Engagement' },
-      { key: 'multiplayer', label: 'Multiplayer' },
-      { key: 'social', label: 'Social' },
-      { key: 'stress_intensity', label: 'Stress/Intensity' }
+      { key: 'pacing', label: 'Pacing' }
     ];
 
     return (
       <div className="pillar-bars-list">
-        {pillars.map(p => (
-          <div key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <div className="pillar-mini-row">
-              <span className="pillar-mini-label">{p.label}</span>
-              <span style={{ fontWeight: '600' }}>{profile[p.key]}/10</span>
+        {pillars.map(p => {
+          const rating = profile[p.key]?.rating;
+          const hasRating = rating !== undefined && rating !== null && rating !== '';
+          return (
+            <div key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div className="pillar-mini-row">
+                <span className="pillar-mini-label">{p.label}</span>
+                <span style={{ fontWeight: '600', color: hasRating ? '#fff' : 'var(--text-muted)' }}>
+                  {hasRating ? `${rating}/10` : 'N/A'}
+                </span>
+              </div>
+              <div className="pillar-mini-track">
+                <div 
+                  className="pillar-mini-fill" 
+                  style={{ 
+                    width: hasRating ? `${rating * 10}%` : '0%',
+                    background: isLeft ? 'var(--primary)' : 'var(--secondary)'
+                  }} 
+                />
+              </div>
             </div>
-            <div className="pillar-mini-track">
-              <div 
-                className="pillar-mini-fill" 
-                style={{ 
-                  width: `${profile[p.key] * 10}%`,
-                  background: isLeft ? 'var(--primary)' : 'var(--secondary)'
-                }} 
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };

@@ -675,11 +675,11 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--secondary)' }}>
                       <Sparkles size={10} />
-                      <span>Story: {game.qualitative.story}</span>
+                      <span>Story: {game.qualitative.story?.rating ?? 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent)' }}>
                       <Sparkles size={10} />
-                      <span>Mechs: {game.qualitative.mechanics}</span>
+                      <span>Mechs: {game.qualitative.mechanics?.rating ?? 'N/A'}</span>
                     </div>
                   </div>
                 )}
