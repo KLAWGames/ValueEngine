@@ -8,7 +8,10 @@ import Subscriptions from './views/Subscriptions';
 import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Settings, Clock, PlusCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [token, setToken] = useState(() => {
+    const t = localStorage.getItem('token');
+    return (t && t !== 'undefined' && t !== 'null') ? t : '';
+  });
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem('user');
