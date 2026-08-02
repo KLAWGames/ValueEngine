@@ -1047,8 +1047,8 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'game_a_id, game_b_id, and chosen_game_id are required' });
   }
 
-  if (chosen_game_id !== game_a_id && chosen_game_id !== game_b_id) {
-    return res.status(400).json({ error: 'Chosen game must be either Game A or Game B' });
+  if (chosen_game_id !== game_a_id && chosen_game_id !== game_b_id && chosen_game_id !== 'neither') {
+    return res.status(400).json({ error: 'Chosen game must be Game A, Game B, or neither' });
   }
 
   const promptType = prompt_type || 'general';
@@ -1092,53 +1092,55 @@ app.post('/api/pairwise/match', authenticateToken, async (req, res) => {
     `, [matchId, req.user.userId, game_a_id, game_b_id, chosen_game_id, promptType]);
 
     // 4. Update qualitative profiles dynamically
-    const chosenId = chosen_game_id;
-    const unchosenId = chosen_game_id === game_a_id ? game_b_id : game_a_id;
+    if (chosen_game_id !== 'neither') {
+      const chosenId = chosen_game_id;
+      const unchosenId = chosen_game_id === game_a_id ? game_b_id : game_a_id;
 
-    const columnMapping = {
-      relax: ['relaxation'],
-      social: ['multiplayer', 'social'],
-      story: ['story'],
-      mechanics: ['mechanics'],
-      graphics: ['graphics'],
-      challenge: ['challenge'],
-      pacing: ['pacing'],
-      engagement: ['engagement'],
-      stress: ['stress_intensity']
-    };
+      const columnMapping = {
+        relax: ['relaxation'],
+        social: ['multiplayer', 'social'],
+        story: ['story'],
+        mechanics: ['mechanics'],
+        graphics: ['graphics'],
+        challenge: ['challenge'],
+        pacing: ['pacing'],
+        engagement: ['engagement'],
+        stress: ['stress_intensity']
+      };
 
-    if (promptType === 'solo') {
-      // Winner: solo-friendly (high relaxation/story, low multiplayer/social)
-      await db.query(`
-        UPDATE qualitative_profiles 
-        SET relaxation = MIN(10.0, COALESCE(relaxation, 5.0) + 0.5),
-            story = MIN(10.0, COALESCE(story, 5.0) + 0.5),
-            multiplayer = MAX(0.0, COALESCE(multiplayer, 5.0) - 0.5),
-            social = MAX(0.0, COALESCE(social, 5.0) - 0.5)
-        WHERE game_id = $1
-      `, [chosenId]);
-      // Loser: less solo-friendly (low relaxation/story, high multiplayer/social)
-      await db.query(`
-        UPDATE qualitative_profiles 
-        SET relaxation = MAX(0.0, COALESCE(relaxation, 5.0) - 0.5),
-            story = MAX(0.0, COALESCE(story, 5.0) - 0.5),
-            multiplayer = MIN(10.0, COALESCE(multiplayer, 5.0) + 0.5),
-            social = MIN(10.0, COALESCE(social, 5.0) + 0.5)
-        WHERE game_id = $1
-      `, [unchosenId]);
-    } else if (columnMapping[promptType]) {
-      const cols = columnMapping[promptType];
-      for (const col of cols) {
-        await db.query(`UPDATE qualitative_profiles SET ${col} = MIN(10.0, COALESCE(${col}, 5.0) + 0.5) WHERE game_id = $1`, [chosenId]);
-        await db.query(`UPDATE qualitative_profiles SET ${col} = MAX(0.0, COALESCE(${col}, 5.0) - 0.5) WHERE game_id = $1`, [unchosenId]);
+      if (promptType === 'solo') {
+        // Winner: solo-friendly (high relaxation/story, low multiplayer/social)
+        await db.query(`
+          UPDATE qualitative_profiles 
+          SET relaxation = MIN(10.0, COALESCE(relaxation, 5.0) + 0.5),
+              story = MIN(10.0, COALESCE(story, 5.0) + 0.5),
+              multiplayer = MAX(0.0, COALESCE(multiplayer, 5.0) - 0.5),
+              social = MAX(0.0, COALESCE(social, 5.0) - 0.5)
+          WHERE game_id = $1
+        `, [chosenId]);
+        // Loser: less solo-friendly (low relaxation/story, high multiplayer/social)
+        await db.query(`
+          UPDATE qualitative_profiles 
+          SET relaxation = MAX(0.0, COALESCE(relaxation, 5.0) - 0.5),
+              story = MAX(0.0, COALESCE(story, 5.0) - 0.5),
+              multiplayer = MIN(10.0, COALESCE(multiplayer, 5.0) + 0.5),
+              social = MIN(10.0, COALESCE(social, 5.0) + 0.5)
+          WHERE game_id = $1
+        `, [unchosenId]);
+      } else if (columnMapping[promptType]) {
+        const cols = columnMapping[promptType];
+        for (const col of cols) {
+          await db.query(`UPDATE qualitative_profiles SET ${col} = MIN(10.0, COALESCE(${col}, 5.0) + 0.5) WHERE game_id = $1`, [chosenId]);
+          await db.query(`UPDATE qualitative_profiles SET ${col} = MAX(0.0, COALESCE(${col}, 5.0) - 0.5) WHERE game_id = $1`, [unchosenId]);
+        }
       }
-    }
 
-    // Apply specific reason pillar boost from generic matchup choice
-    const validPillars = ['story', 'mechanics', 'graphics', 'challenge', 'pacing', 'engagement', 'relaxation', 'social', 'multiplayer', 'stress_intensity'];
-    if (reason_pillar && validPillars.includes(reason_pillar)) {
-      await db.query(`UPDATE qualitative_profiles SET ${reason_pillar} = MIN(10.0, COALESCE(${reason_pillar}, 5.0) + 1.0) WHERE game_id = $1`, [chosenId]);
-      await db.query(`UPDATE qualitative_profiles SET ${reason_pillar} = MAX(0.0, COALESCE(${reason_pillar}, 5.0) - 1.0) WHERE game_id = $1`, [unchosenId]);
+      // Apply specific reason pillar boost from generic matchup choice
+      const validPillars = ['story', 'mechanics', 'graphics', 'challenge', 'pacing', 'engagement', 'relaxation', 'social', 'multiplayer', 'stress_intensity'];
+      if (reason_pillar && validPillars.includes(reason_pillar)) {
+        await db.query(`UPDATE qualitative_profiles SET ${reason_pillar} = MIN(10.0, COALESCE(${reason_pillar}, 5.0) + 1.0) WHERE game_id = $1`, [chosenId]);
+        await db.query(`UPDATE qualitative_profiles SET ${reason_pillar} = MAX(0.0, COALESCE(${reason_pillar}, 5.0) - 1.0) WHERE game_id = $1`, [unchosenId]);
+      }
     }
 
     // 5. Update games Elo

@@ -205,6 +205,10 @@ function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
 
   const handleVote = async (winnerId) => {
     if (!match) return;
+    if (winnerId === 'neither') {
+      executeVote(winnerId, null);
+      return;
+    }
     const promptId = match.prompt?.id || 'general';
     if (promptId === 'general' || promptId === 'right_now') {
       setPendingVote({ winnerId });
