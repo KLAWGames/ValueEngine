@@ -458,12 +458,11 @@ app.post('/api/games', authenticateToken, async (req, res) => {
     const gameId = crypto.randomUUID();
     const finalBaseCost = (acquisition_type === 'free' || acquisition_type === 'f2p') ? 0.00 : parseFloat(base_cost || 0);
     const finalSubId = acquisition_type === 'subscription' ? subscription_id : null;
-    const finalUnplayed = unplayed === true || unplayed === 'true';
+    const initialHours = total_hours !== undefined ? parseFloat(total_hours) : 0.00;
+    const finalUnplayed = initialHours > 0 ? false : (unplayed === true || unplayed === 'true');
     const initialStatus = finalUnplayed ? 'unplayed' : 'playing';
     const playMode = play_mode || 'single';
     const finalHasOpinion = has_opinion !== undefined ? (has_opinion === true || has_opinion === 'true') : !finalUnplayed;
-
-    const initialHours = total_hours !== undefined ? parseFloat(total_hours) : 0.00;
 
     // 1. Insert Game
     await db.query(`
@@ -785,7 +784,7 @@ app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
     if (addToTotal === true || addToTotal === 'true') {
       await db.query(`
         UPDATE games 
-        SET overall_hours = overall_hours + $1
+        SET overall_hours = overall_hours + $1, unplayed = 0
         WHERE game_id = $2
       `, [hours, id]);
     }

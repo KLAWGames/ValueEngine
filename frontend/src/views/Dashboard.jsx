@@ -488,7 +488,9 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
                     <span className="rank-number" style={{ background: 'rgba(8, 145, 178, 0.1)', color: 'var(--cyan)' }}>#{idx + 1}</span>
                     <span className="game-name" style={{ fontSize: '0.95rem' }}>{game.title}</span>
                   </div>
-                  <span className="game-score-tag cyan" style={{ padding: '4px 10px', fontSize: '0.8rem' }}>${game.cph.toFixed(2)}/hr</span>
+                  <span className="game-score-tag cyan" style={{ padding: '4px 10px', fontSize: '0.8rem' }}>
+                    {typeof game.cph === 'number' && !isNaN(game.cph) ? `$${game.cph.toFixed(2)}/hr` : 'N/A'}
+                  </span>
                 </div>
               ))}
             </div>
