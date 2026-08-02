@@ -407,80 +407,120 @@ function App() {
 }
 
 function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashboard }) {
-  const [mode, setMode] = useState('menu'); // 'menu' | 'log_time'
-  const [selectedGameId, setSelectedGameId] = useState('');
-  const [hoursToLog, setHoursToLog] = useState('1.0');
+  const [mode, setMode] = useState('menu'); // 'menu' | 'select_games' | 'log_method' | 'wizard' | 'complete'
+  const [selectedGameIds, setSelectedGameIds] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [logMethod, setLogMethod] = useState('session'); // 'session' | 'duration'
+  const [wizardIndex, setWizardIndex] = useState(0);
+  const [hoursInput, setHoursInput] = useState('1.0');
   const [logDate, setLogDate] = useState(() => new Date().toISOString().substring(0, 10));
-  const [mood, setMood] = useState('');
   const [logging, setLogging] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Top 6 recently played or added games
-  const recentGames = games.slice(0, 6);
+  // Sort games for selection: Recently Played first, then Alpha
+  const recentGames = games.filter(g => g.last_played_at || g.total_hours > 0).slice(0, 6);
+  const allAlphaGames = [...games].sort((a, b) => a.title.localeCompare(b.title));
+  const searchFilteredGames = allAlphaGames.filter(g => 
+    g.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  useEffect(() => {
-    if (recentGames.length > 0 && !selectedGameId) {
-      setSelectedGameId(recentGames[0].game_id);
+  const toggleGameSelection = (gameId) => {
+    setSelectedGameIds(prev => 
+      prev.includes(gameId) ? prev.filter(id => id !== gameId) : [...prev, gameId]
+    );
+  };
+
+  const handleStartWizard = (method) => {
+    setLogMethod(method);
+    setWizardIndex(0);
+    if (selectedGameIds.length > 0) {
+      const firstGame = games.find(g => g.game_id === selectedGameIds[0]);
+      if (firstGame) {
+        setHoursInput(method === 'session' ? '1.0' : (firstGame.total_hours || 0).toString());
+      }
     }
-  }, [recentGames, selectedGameId]);
+    setMode('wizard');
+  };
 
-  const handleQuickLog = async (e) => {
-    e.preventDefault();
-    if (!selectedGameId || !hoursToLog || parseFloat(hoursToLog) <= 0) return;
-
-    setLogging(true);
-    try {
-      const res = await fetch(`/api/games/${selectedGameId}/logs`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          hours_played: parseFloat(hoursToLog),
-          logged_date: logDate,
-          addToTotal: true
-        })
-      });
-
-      if (mood) {
-        await fetch(`/api/moods/log`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            mood_tag: mood
-          })
-        });
+  // Sync hoursInput whenever wizardIndex changes
+  useEffect(() => {
+    if (mode === 'wizard' && selectedGameIds[wizardIndex]) {
+      const currentGame = games.find(g => g.game_id === selectedGameIds[wizardIndex]);
+      if (currentGame) {
+        setHoursInput(logMethod === 'session' ? '1.0' : (currentGame.total_hours || 0).toString());
       }
+    }
+  }, [wizardIndex, mode, logMethod, selectedGameIds, games]);
 
-      if (res.ok) {
-        setSuccessMsg('Time & mood logged successfully!');
-        if (onRefresh) onRefresh();
-        setTimeout(() => {
-          setSuccessMsg('');
-          onClose();
-        }, 1200);
+  const handleSaveCurrentWizardStep = async (skip = false) => {
+    const currentGameId = selectedGameIds[wizardIndex];
+    if (!skip && currentGameId) {
+      const val = parseFloat(hoursInput);
+      if (!isNaN(val)) {
+        setLogging(true);
+        try {
+          if (logMethod === 'session') {
+            await fetch(`/api/games/${currentGameId}/logs`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                hours_played: val,
+                logged_date: logDate,
+                addToTotal: true
+              })
+            });
+          } else {
+            await fetch(`/api/games/${currentGameId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                total_hours: val,
+                unplayed: val === 0
+              })
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLogging(false);
+        }
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLogging(false);
+    }
+
+    if (wizardIndex < selectedGameIds.length - 1) {
+      setWizardIndex(prev => prev + 1);
+    } else {
+      setMode('complete');
+      setSuccessMsg(`Successfully updated time for ${selectedGameIds.length} game${selectedGameIds.length > 1 ? 's' : ''}!`);
+      if (onRefresh) onRefresh();
+      setTimeout(() => {
+        onClose();
+      }, 1400);
     }
   };
 
   return (
     <div className="modal-backdrop" style={{ zIndex: 10000 }}>
-      <div className="glass-panel modal-content" style={{ maxWidth: '480px', width: '92%', padding: '24px' }}>
+      <div className="glass-panel modal-content" style={{ maxWidth: '520px', width: '92%', padding: '24px', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {mode === 'log_time' && (
+            {mode !== 'menu' && mode !== 'complete' && (
               <button 
-                onClick={() => setMode('menu')} 
+                onClick={() => {
+                  if (mode === 'log_method') setMode('select_games');
+                  else if (mode === 'wizard') {
+                    if (wizardIndex > 0) setWizardIndex(prev => prev - 1);
+                    else setMode('log_method');
+                  } else setMode('menu');
+                }} 
                 className="header-action-btn"
                 style={{ padding: '6px', marginRight: '4px' }}
               >
@@ -488,11 +528,18 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
               </button>
             )}
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#fff' }}>
-                {mode === 'menu' ? 'Welcome Back!' : 'Log Play Time'}
+              <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#fff' }}>
+                {mode === 'menu' && 'Welcome Back!'}
+                {mode === 'select_games' && 'Select Games Played'}
+                {mode === 'log_method' && 'Choose Update Method'}
+                {mode === 'wizard' && `Game ${wizardIndex + 1} of ${selectedGameIds.length}`}
+                {mode === 'complete' && 'All Done!'}
               </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '2px' }}>
-                {mode === 'menu' ? 'What would you like to do today?' : 'Select a game you played recently:'}
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
+                {mode === 'menu' && 'What would you like to do today?'}
+                {mode === 'select_games' && 'Tap all the games you played recently:'}
+                {mode === 'log_method' && 'Do you want to add session hours or update total time?'}
+                {mode === 'wizard' && 'Enter hours for this title or skip:'}
               </p>
             </div>
           </div>
@@ -506,7 +553,7 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button 
               className="welcome-action-card"
-              onClick={() => setMode('log_time')}
+              onClick={() => setMode('select_games')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -526,7 +573,7 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
               </div>
               <div>
                 <div style={{ fontWeight: '600', fontSize: '1rem' }}>Log time</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '2px' }}>Quick log hours for your recently played games</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '2px' }}>Quickly select & update hours for your played games</div>
               </div>
             </button>
 
@@ -584,88 +631,285 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
           </div>
         )}
 
-        {/* Mode: LOG TIME */}
-        {mode === 'log_time' && (
-          <div>
-            {successMsg ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--success)' }}>
-                <CheckCircle2 size={48} style={{ margin: '0 auto 12px' }} />
-                <div style={{ fontWeight: '600', fontSize: '1.1rem' }}>{successMsg}</div>
+        {/* Mode: SELECT GAMES */}
+        {mode === 'select_games' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, overflow: 'hidden' }}>
+            
+            {/* Quick Recent Section */}
+            {recentGames.length > 0 && !searchQuery && (
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                  Recently Played
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {recentGames.map(g => {
+                    const isSelected = selectedGameIds.includes(g.game_id);
+                    return (
+                      <button
+                        key={g.game_id}
+                        type="button"
+                        onClick={() => toggleGameSelection(g.game_id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          background: isSelected ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                          border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                          color: isSelected ? '#fff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected} 
+                          readOnly 
+                          style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontWeight: isSelected ? '600' : 'normal' }}>{g.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              <form onSubmit={handleQuickLog} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div className="form-group">
-                  <label className="form-label">Recent Games</label>
-                  {recentGames.length === 0 ? (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No games found in your library yet.</p>
-                  ) : (
-                    <select 
-                      className="form-input" 
-                      value={selectedGameId} 
-                      onChange={e => setSelectedGameId(e.target.value)}
-                      required
-                    >
-                      {recentGames.map(g => (
-                        <option key={g.game_id} value={g.game_id}>
-                          {g.title} ({g.total_hours || 0} hrs logged)
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Hours Spent</label>
-                    <input 
-                      type="number" 
-                      step="0.5" 
-                      min="0.1" 
-                      className="form-input" 
-                      value={hoursToLog} 
-                      onChange={e => setHoursToLog(e.target.value)}
-                      required 
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Date</label>
-                    <input 
-                      type="date" 
-                      className="form-input" 
-                      value={logDate} 
-                      onChange={e => setLogDate(e.target.value)}
-                      required 
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">How did you feel before playing?</label>
-                  <select 
-                    className="form-input" 
-                    value={mood} 
-                    onChange={e => setMood(e.target.value)}
-                  >
-                    <option value="">-- Optional: Select Mood --</option>
-                    <option value="Relaxed">Relaxed / Unwinding</option>
-                    <option value="Challenged">Wanting a challenge</option>
-                    <option value="Social">Feeling Social</option>
-                    <option value="Bored">Bored / Killing time</option>
-                    <option value="Stressed">Stressed / Needing escape</option>
-                  </select>
-                </div>
-
-                <button 
-                  type="submit" 
-                  className="btn btn-primary" 
-                  style={{ marginTop: '8px' }} 
-                  disabled={logging || recentGames.length === 0}
-                >
-                  {logging ? 'Saving Log...' : 'Save Log'}
-                </button>
-              </form>
             )}
+
+            {/* Search Input */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Search or filter library..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ fontSize: '0.85rem' }}
+              />
+            </div>
+
+            {/* Full Scrollable List */}
+            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', padding: '6px' }}>
+              {searchFilteredGames.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  No games matched "{searchQuery}"
+                </div>
+              ) : (
+                searchFilteredGames.map(g => {
+                  const isSelected = selectedGameIds.includes(g.game_id);
+                  return (
+                    <div
+                      key={g.game_id}
+                      onClick={() => toggleGameSelection(g.game_id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        marginBottom: '4px',
+                        background: isSelected ? 'rgba(99, 102, 241, 0.18)' : 'transparent',
+                        border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid transparent',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected} 
+                          readOnly 
+                          style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
+                        />
+                        <span style={{ fontSize: '0.9rem', fontWeight: isSelected ? '600' : 'normal', color: '#fff' }}>
+                          {g.title}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {g.total_hours || 0}h
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div style={{ display: 'flex', gap: '10px', paddingTop: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1, fontSize: '0.85rem' }}
+                onClick={() => {
+                  onClose();
+                  onAddGame();
+                }}
+              >
+                + New Game
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ flex: 2, fontSize: '0.85rem' }}
+                disabled={selectedGameIds.length === 0}
+                onClick={() => setMode('log_method')}
+              >
+                Next ({selectedGameIds.length} Selected)
+              </button>
+            </div>
+
+          </div>
+        )}
+
+        {/* Mode: LOG METHOD */}
+        {mode === 'log_method' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => handleStartWizard('session')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: '#fff',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <div style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', padding: '12px', borderRadius: '10px' }}>
+                <Clock size={24} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Log Play Session</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '2px' }}>
+                  Add hours spent in your recent play session (e.g. +2.0 hrs today).
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleStartWizard('duration')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: '#fff',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <div style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '12px', borderRadius: '10px' }}>
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Update Total Duration</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '2px' }}>
+                  Directly set overall cumulative hours (e.g. now at 45.0 hrs).
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Mode: WIZARD */}
+        {mode === 'wizard' && selectedGameIds[wizardIndex] && (() => {
+          const currentGame = games.find(g => g.game_id === selectedGameIds[wizardIndex]);
+          if (!currentGame) return null;
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', padding: '14px', borderRadius: '10px' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff' }}>
+                  {currentGame.title}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Current Total Playtime: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{(currentGame.total_hours || 0).toFixed(1)}h</span>
+                </div>
+              </div>
+
+              {logMethod === 'session' ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">Session Duration (Hours)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.1"
+                      className="form-input"
+                      value={hoursInput}
+                      onChange={e => setHoursInput(e.target.value)}
+                      placeholder="e.g. 2.0"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Date Played</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={logDate}
+                      onChange={e => setLogDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">New Cumulative Hours</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    className="form-input"
+                    value={hoursInput}
+                    onChange={e => setHoursInput(e.target.value)}
+                    placeholder="e.g. 25.0"
+                    required
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: 1, fontSize: '0.85rem' }}
+                  onClick={() => handleSaveCurrentWizardStep(true)}
+                  disabled={logging}
+                >
+                  Skip
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ flex: 2, fontSize: '0.85rem' }}
+                  onClick={() => handleSaveCurrentWizardStep(false)}
+                  disabled={logging}
+                >
+                  {logging ? 'Saving...' : (wizardIndex === selectedGameIds.length - 1 ? 'Save & Complete' : 'Save & Next')}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Mode: COMPLETE */}
+        {mode === 'complete' && (
+          <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--success)' }}>
+            <CheckCircle2 size={56} style={{ margin: '0 auto 16px' }} />
+            <div style={{ fontWeight: '700', fontSize: '1.2rem', color: '#fff' }}>{successMsg}</div>
           </div>
         )}
 

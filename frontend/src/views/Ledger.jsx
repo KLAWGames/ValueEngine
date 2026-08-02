@@ -188,6 +188,31 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     return matchSearch && matchAcq && matchPlaytime && matchRating;
   });
 
+  const sortedGames = [...filteredGames].sort((a, b) => {
+    // 1. Recently played / logged time for (most recent last_played_at first)
+    const aPlayed = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
+    const bPlayed = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
+    if (aPlayed !== bPlayed) {
+      return bPlayed - aPlayed;
+    }
+
+    // 2. Recently logged time (total_hours > 0)
+    const aHours = parseFloat(a.total_hours || 0);
+    const bHours = parseFloat(b.total_hours || 0);
+    if ((aHours > 0) !== (bHours > 0)) {
+      return bHours > 0 ? -1 : 1;
+    }
+
+    // 3. New games added (created_at most recent first)
+    const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+    if (aCreated !== bCreated) {
+      return bCreated - aCreated;
+    }
+
+    return (a.title || '').localeCompare(b.title || '');
+  });
+
   const openAddGameModal = () => {
     setTitle('');
     setAcqType('retail');
@@ -648,7 +673,7 @@ const pillarLabels = {
         </div>
       ) : (
         <div className="game-grid">
-          {filteredGames.map(game => (
+          {sortedGames.map(game => (
             <div key={game.game_id} className={`glass-panel game-card ${game.acquisition_type}`}>
               <div>
                 <div className="game-card-header">
