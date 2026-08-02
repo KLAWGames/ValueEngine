@@ -726,33 +726,50 @@ const pillarLabels = {
 
               <div>
                 {/* Qualitative small preview */}
-                {!game.unplayed && game.qualitative && (
+                {!game.unplayed && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--primary)' }}>
                       <Star size={10} fill="var(--primary)" />
                       <span>Elo: {game.elo_rating}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--secondary)' }}>
-                      <Sparkles size={10} />
-                      <span>Story: {game.qualitative.story?.rating ?? 'N/A'}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent)' }}>
-                      <Sparkles size={10} />
-                      <span>Mechs: {game.qualitative.mechanics?.rating ?? 'N/A'}</span>
-                    </div>
+                    {game.has_opinion && game.qualitative && (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--secondary)' }}>
+                          <Sparkles size={10} />
+                          <span>Story: {game.qualitative.story?.rating ?? 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--accent)' }}>
+                          <Sparkles size={10} />
+                          <span>Mechs: {game.qualitative.mechanics?.rating ?? 'N/A'}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
                 {/* Finished review details */}
-                {(game.score_100 !== null || game.recommend !== null) && (
+                {!game.unplayed && (
                   <div className="review-highlight-row">
-                    {game.score_100 !== null && (
-                      <div className="review-highlight-item" style={{ color: '#a78bfa' }}>
+                    {game.has_opinion ? (
+                      game.score_100 !== null ? (
+                        <div className="review-highlight-item" style={{ color: '#a78bfa' }}>
+                          <CheckCircle size={10} />
+                          <span>Score: {game.score_100}/100</span>
+                        </div>
+                      ) : (
+                        <div className="review-highlight-item" style={{ color: '#a78bfa' }}>
+                          <CheckCircle size={10} />
+                          <span>Score: TBD</span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="review-highlight-item" style={{ color: 'var(--text-muted)' }}>
                         <CheckCircle size={10} />
-                        <span>Score: {game.score_100}/100</span>
+                        <span>Score: Unrated</span>
                       </div>
                     )}
-                    {game.recommend !== null && (
+                    
+                    {game.has_opinion && game.recommend !== null && (
                       <div className="review-highlight-item" style={{ color: game.recommend ? '#34d399' : '#f87171' }}>
                         <ThumbsUp size={10} style={{ transform: game.recommend ? 'none' : 'rotate(180deg)' }} />
                         <span>{game.recommend ? 'Recommends' : 'No Recommend'}</span>
