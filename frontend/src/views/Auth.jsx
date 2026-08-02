@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, UserPlus, ShieldAlert, Gamepad2, Send, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
+function Auth({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
