@@ -116,6 +116,8 @@ function App() {
           // If first launch, show check-in to orient user
           setLoginPrompt('daily');
         }
+      }
+
       // Auto-migrate any offline/localStorage games created during Phase 3 to Turso cloud
       const ldbGamesRaw = localStorage.getItem('ldb_games');
       if (ldbGamesRaw) {
