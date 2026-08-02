@@ -257,12 +257,13 @@ const getSubscriptionAmortization = async (userId) => {
     const gameIds = games.map(g => g.game_id);
 
     // Fetch play logs for these games
+    const placeholders = gameIds.map((_, i) => `$${i + 1}`).join(',');
     const resLogs = await db.query(`
       SELECT game_id, hours_played, logged_date 
       FROM play_logs 
-      WHERE game_id = ANY($1::uuid[])
+      WHERE game_id IN (${placeholders})
       ORDER BY logged_date ASC
-    `, [gameIds]);
+    `, gameIds);
     const logs = resLogs.rows;
 
     // Group logs by month ("YYYY-MM")
