@@ -407,13 +407,17 @@ function App() {
 }
 
 function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashboard }) {
-  const [mode, setMode] = useState('menu'); // 'menu' | 'select_games' | 'log_method' | 'wizard' | 'complete'
+  const [mode, setMode] = useState('menu'); // 'menu' | 'select_games' | 'wizard' | 'complete'
   const [selectedGameIds, setSelectedGameIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [logMethod, setLogMethod] = useState('session'); // 'session' | 'duration'
+  
+  // Wizard per-game states
   const [wizardIndex, setWizardIndex] = useState(0);
-  const [hoursInput, setHoursInput] = useState('1.0');
+  const [entryMode, setEntryMode] = useState('session'); // 'session' | 'duration'
+  const [sessionHours, setSessionHours] = useState('1.0');
+  const [totalDurationInput, setTotalDurationInput] = useState('');
   const [logDate, setLogDate] = useState(() => new Date().toISOString().substring(0, 10));
+  const [mood, setMood] = useState('');
   const [logging, setLogging] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -430,36 +434,32 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
     );
   };
 
-  const handleStartWizard = (method) => {
-    setLogMethod(method);
+  const handleStartWizard = () => {
     setWizardIndex(0);
-    if (selectedGameIds.length > 0) {
-      const firstGame = games.find(g => g.game_id === selectedGameIds[0]);
-      if (firstGame) {
-        setHoursInput(method === 'session' ? '1.0' : (firstGame.total_hours || 0).toString());
-      }
-    }
     setMode('wizard');
   };
 
-  // Sync hoursInput whenever wizardIndex changes
+  // Sync inputs whenever wizardIndex changes
   useEffect(() => {
     if (mode === 'wizard' && selectedGameIds[wizardIndex]) {
       const currentGame = games.find(g => g.game_id === selectedGameIds[wizardIndex]);
       if (currentGame) {
-        setHoursInput(logMethod === 'session' ? '1.0' : (currentGame.total_hours || 0).toString());
+        setSessionHours('1.0');
+        setTotalDurationInput((currentGame.total_hours || 0).toString());
+        setMood('');
+        setEntryMode('session');
       }
     }
-  }, [wizardIndex, mode, logMethod, selectedGameIds, games]);
+  }, [wizardIndex, mode, selectedGameIds, games]);
 
   const handleSaveCurrentWizardStep = async (skip = false) => {
     const currentGameId = selectedGameIds[wizardIndex];
     if (!skip && currentGameId) {
-      const val = parseFloat(hoursInput);
-      if (!isNaN(val)) {
-        setLogging(true);
-        try {
-          if (logMethod === 'session') {
+      setLogging(true);
+      try {
+        if (entryMode === 'session') {
+          const hoursVal = parseFloat(sessionHours);
+          if (!isNaN(hoursVal) && hoursVal > 0) {
             await fetch(`/api/games/${currentGameId}/logs`, {
               method: 'POST',
               headers: {
@@ -467,12 +467,28 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
                 'Authorization': `Bearer ${token}`
               },
               body: JSON.stringify({
-                hours_played: val,
+                hours_played: hoursVal,
                 logged_date: logDate,
                 addToTotal: true
               })
             });
-          } else {
+
+            if (mood) {
+              await fetch(`/api/moods/log`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  mood_tag: mood
+                })
+              });
+            }
+          }
+        } else {
+          const durationVal = parseFloat(totalDurationInput);
+          if (!isNaN(durationVal)) {
             await fetch(`/api/games/${currentGameId}`, {
               method: 'PUT',
               headers: {
@@ -480,16 +496,16 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
                 'Authorization': `Bearer ${token}`
               },
               body: JSON.stringify({
-                total_hours: val,
-                unplayed: val === 0
+                total_hours: durationVal,
+                unplayed: durationVal === 0
               })
             });
           }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setLogging(false);
         }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLogging(false);
       }
     }
 
@@ -497,7 +513,7 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
       setWizardIndex(prev => prev + 1);
     } else {
       setMode('complete');
-      setSuccessMsg(`Successfully updated time for ${selectedGameIds.length} game${selectedGameIds.length > 1 ? 's' : ''}!`);
+      setSuccessMsg(`Successfully updated ${selectedGameIds.length} game${selectedGameIds.length > 1 ? 's' : ''}!`);
       if (onRefresh) onRefresh();
       setTimeout(() => {
         onClose();
@@ -515,10 +531,9 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
             {mode !== 'menu' && mode !== 'complete' && (
               <button 
                 onClick={() => {
-                  if (mode === 'log_method') setMode('select_games');
-                  else if (mode === 'wizard') {
+                  if (mode === 'wizard') {
                     if (wizardIndex > 0) setWizardIndex(prev => prev - 1);
-                    else setMode('log_method');
+                    else setMode('select_games');
                   } else setMode('menu');
                 }} 
                 className="header-action-btn"
@@ -531,15 +546,13 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
               <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#fff' }}>
                 {mode === 'menu' && 'Welcome Back!'}
                 {mode === 'select_games' && 'Select Games Played'}
-                {mode === 'log_method' && 'Choose Update Method'}
                 {mode === 'wizard' && `Game ${wizardIndex + 1} of ${selectedGameIds.length}`}
                 {mode === 'complete' && 'All Done!'}
               </h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>
                 {mode === 'menu' && 'What would you like to do today?'}
                 {mode === 'select_games' && 'Tap all the games you played recently:'}
-                {mode === 'log_method' && 'Do you want to add session hours or update total time?'}
-                {mode === 'wizard' && 'Enter hours for this title or skip:'}
+                {mode === 'wizard' && 'Log session hours, mood, or update total duration:'}
               </p>
             </div>
           </div>
@@ -753,71 +766,12 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
                 className="btn btn-primary"
                 style={{ flex: 2, fontSize: '0.85rem' }}
                 disabled={selectedGameIds.length === 0}
-                onClick={() => setMode('log_method')}
+                onClick={handleStartWizard}
               >
                 Next ({selectedGameIds.length} Selected)
               </button>
             </div>
 
-          </div>
-        )}
-
-        {/* Mode: LOG METHOD */}
-        {mode === 'log_method' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button
-              type="button"
-              onClick={() => handleStartWizard('session')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '12px',
-                padding: '16px',
-                color: '#fff',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <div style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', padding: '12px', borderRadius: '10px' }}>
-                <Clock size={24} />
-              </div>
-              <div>
-                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Log Play Session</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '2px' }}>
-                  Add hours spent in your recent play session (e.g. +2.0 hrs today).
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleStartWizard('duration')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '12px',
-                padding: '16px',
-                color: '#fff',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <div style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '12px', borderRadius: '10px' }}>
-                <CheckCircle2 size={24} />
-              </div>
-              <div>
-                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>Update Total Duration</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '2px' }}>
-                  Directly set overall cumulative hours (e.g. now at 45.0 hrs).
-                </div>
-              </div>
-            </button>
           </div>
         )}
 
@@ -829,58 +783,126 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', padding: '14px', borderRadius: '10px' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff' }}>
-                  {currentGame.title}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Current Total Playtime: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{(currentGame.total_hours || 0).toFixed(1)}h</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff' }}>
+                      {currentGame.title}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      Current Total Playtime: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{(currentGame.total_hours || 0).toFixed(1)}h</span>
+                    </div>
+                  </div>
+                  <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontSize: '0.75rem' }}>
+                    {wizardIndex + 1} of {selectedGameIds.length}
+                  </span>
                 </div>
               </div>
 
-              {logMethod === 'session' ? (
+              {/* Mode Toggle Tabs */}
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => setEntryMode('session')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    background: entryMode === 'session' ? 'var(--primary)' : 'transparent',
+                    color: entryMode === 'session' ? '#fff' : 'var(--text-muted)',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  + Log Session Time
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEntryMode('duration')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    background: entryMode === 'duration' ? 'var(--secondary)' : 'transparent',
+                    color: entryMode === 'duration' ? '#fff' : 'var(--text-muted)',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  ⚙️ Set Total Duration
+                </button>
+              </div>
+
+              {entryMode === 'session' ? (
                 <>
-                  <div className="form-group">
-                    <label className="form-label">Session Duration (Hours)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0.1"
-                      className="form-input"
-                      value={hoursInput}
-                      onChange={e => setHoursInput(e.target.value)}
-                      placeholder="e.g. 2.0"
-                      required
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Session Hours (+)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.1"
+                        className="form-input"
+                        value={sessionHours}
+                        onChange={e => setSessionHours(e.target.value)}
+                        placeholder="e.g. 1.5"
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Date Played</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={logDate}
+                        onChange={e => setLogDate(e.target.value)}
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Date Played</label>
-                    <input
-                      type="date"
+                    <label className="form-label">How did you feel / Why were you playing?</label>
+                    <select
                       className="form-input"
-                      value={logDate}
-                      onChange={e => setLogDate(e.target.value)}
-                      required
-                    />
+                      value={mood}
+                      onChange={e => setMood(e.target.value)}
+                    >
+                      <option value="">-- Optional: Select Mood / Motivation --</option>
+                      <option value="Relaxed">Relaxed / Unwinding</option>
+                      <option value="Challenged">Wanting a challenge</option>
+                      <option value="Social">Feeling Social / Playing with friends</option>
+                      <option value="Bored">Bored / Killing time</option>
+                      <option value="Stressed">Stressed / Needing escape</option>
+                    </select>
                   </div>
                 </>
               ) : (
                 <div className="form-group">
-                  <label className="form-label">New Cumulative Hours</label>
+                  <label className="form-label">New Total Duration (Cumulative Hours)</label>
                   <input
                     type="number"
                     step="0.5"
                     min="0"
                     className="form-input"
-                    value={hoursInput}
-                    onChange={e => setHoursInput(e.target.value)}
-                    placeholder="e.g. 25.0"
+                    value={totalDurationInput}
+                    onChange={e => setTotalDurationInput(e.target.value)}
+                    placeholder="e.g. 45.0"
                     required
                   />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    This overrides the overall playtime directly for this title.
+                  </p>
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
                 <button
                   type="button"
                   className="btn btn-secondary"
