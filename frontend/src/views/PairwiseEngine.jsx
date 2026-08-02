@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, Trophy, Play, CheckCircle2, ChevronRight, ThumbsUp, ThumbsDown, ChevronUp, ChevronDown, Layers } from 'lucide-react';
+import { Flame, Trophy, Play, CheckCircle2, ChevronRight, ThumbsUp, ThumbsDown, ChevronUp, ChevronDown, Layers, GripVertical } from 'lucide-react';
 
 function PairwiseEngine({ token, games, onRefresh }) {
   const [activeTab, setActiveTab] = useState('1v1'); // '1v1' | 'sort'
@@ -17,6 +17,53 @@ function PairwiseEngine({ token, games, onRefresh }) {
   const [sortingOutcome, setSortingOutcome] = useState(false);
   const [sortingResults, setSortingResults] = useState(null);
   const [sortLoading, setSortLoading] = useState(false);
+
+  // Drag & Touch Reordering States
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [touchStartIndex, setTouchStartIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', index.toString());
+    }
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const items = [...sortingGames];
+    const draggedItem = items[draggedIndex];
+    items.splice(draggedIndex, 1);
+    items.splice(index, 0, draggedItem);
+
+    setDraggedIndex(index);
+    setSortingGames(items);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
+  const handleTouchStart = (index) => {
+    setTouchStartIndex(index);
+  };
+
+  const handleTouchMove = (e, index) => {
+    if (touchStartIndex === null || touchStartIndex === index) return;
+    const items = [...sortingGames];
+    const draggedItem = items[touchStartIndex];
+    items.splice(touchStartIndex, 1);
+    items.splice(index, 0, draggedItem);
+    setTouchStartIndex(index);
+    setSortingGames(items);
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStartIndex(null);
+  };
 
   const fetchNextMatch = async () => {
     setLoading(true);
@@ -456,11 +503,11 @@ function PairwiseEngine({ token, games, onRefresh }) {
           )}
 
           {/* Glowing Matchup Context Prompt Box */}
-          <div className="prompt-question-box" style={{ margin: '0 auto 28px', maxWidth: '680px', padding: '16px 24px', borderRadius: '12px', background: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '700', display: 'block', marginBottom: '4px' }}>
+          <div className="prompt-question-box" style={{ margin: '0 auto 16px', maxWidth: '680px', padding: '10px 16px', borderRadius: '10px', background: 'rgba(167, 139, 250, 0.08)', border: '1px solid rgba(167, 139, 250, 0.2)', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '700', display: 'block', marginBottom: '2px' }}>
               Active Matchup Prompt
             </span>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#fff', margin: 0 }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#fff', margin: 0 }}>
               {match?.prompt?.text || 'Which experience do you prefer overall?'}
             </h2>
             {match?.prompt?.id === 'social' && (
@@ -468,7 +515,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleSkipMultiplayer}
-                style={{ marginTop: '14px', fontSize: '0.75rem', padding: '6px 12px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                style={{ marginTop: '8px', fontSize: '0.75rem', padding: '4px 10px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
                 I don't feel like playing multiplayer games right now
               </button>
@@ -516,13 +563,36 @@ function PairwiseEngine({ token, games, onRefresh }) {
         /* Card Sorter UI */
         <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <p style={{ color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '16px' }}>
-            Sort these games from <strong>Most Favorite (top)</strong> to <strong>Least Favorite (bottom)</strong> using the Up/Down buttons. Toggle thumbs to quickly recommend them.
+            Press and drag cards by the grip handle to sort from <strong>Most Favorite (top)</strong> to <strong>Least Favorite (bottom)</strong>. Toggle thumbs to recommend.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {sortingGames.map((game, index) => (
-              <div key={game.game_id} className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div 
+                key={game.game_id} 
+                className="glass-panel" 
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                onTouchStart={() => handleTouchStart(index)}
+                onTouchMove={(e) => handleTouchMove(e, index)}
+                onTouchEnd={handleTouchEnd}
+                style={{ 
+                  display: 'flex', 
+                  justify: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '16px', 
+                  border: draggedIndex === index ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                  opacity: draggedIndex === index ? 0.6 : 1,
+                  background: draggedIndex === index ? 'rgba(168, 85, 247, 0.1)' : 'rgba(17, 24, 39, 0.6)',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  transition: 'transform 0.15s ease, background 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <GripVertical size={22} style={{ color: 'var(--primary)', cursor: 'grab', flexShrink: 0 }} />
                   <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--primary)' }}>
                     {index + 1}
                   </div>
@@ -536,7 +606,7 @@ function PairwiseEngine({ token, games, onRefresh }) {
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {/* Recommendation thumbs */}
-                  <div style={{ display: 'flex', gap: '6px', borderRight: '1px solid var(--border-color)', paddingRight: '12px', marginRight: '4px' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
                     <button
                       type="button"
                       className={`card-action-btn ${sortingRecommendations[game.game_id] === true ? 'active' : ''}`}
@@ -556,26 +626,6 @@ function PairwiseEngine({ token, games, onRefresh }) {
                       <ThumbsDown size={16} />
                     </button>
                   </div>
-
-                  {/* Move Up/Down buttons */}
-                  <button
-                    type="button"
-                    className="card-action-btn"
-                    disabled={index === 0}
-                    onClick={() => moveCard(index, -1)}
-                    style={{ padding: '6px', opacity: index === 0 ? 0.3 : 1, cursor: index === 0 ? 'not-allowed' : 'pointer', background: 'transparent', border: 'none', color: 'var(--text-secondary)' }}
-                  >
-                    <ChevronUp size={20} />
-                  </button>
-                  <button
-                    type="button"
-                    className="card-action-btn"
-                    disabled={index === sortingGames.length - 1}
-                    onClick={() => moveCard(index, 1)}
-                    style={{ padding: '6px', opacity: index === sortingGames.length - 1 ? 0.3 : 1, cursor: index === sortingGames.length - 1 ? 'not-allowed' : 'pointer', background: 'transparent', border: 'none', color: 'var(--text-secondary)' }}
-                  >
-                    <ChevronDown size={20} />
-                  </button>
                 </div>
               </div>
             ))}
