@@ -11,6 +11,10 @@ function PairwiseEngine({ token, games, onRefresh }) {
   const [outcome, setOutcome] = useState(null);
   const [pendingVote, setPendingVote] = useState(null);
 
+  // Accordion details states for 1v1 Arena
+  const [showDetailsA, setShowDetailsA] = useState(false);
+  const [showDetailsB, setShowDetailsB] = useState(false);
+
   // Card Sorter States
   const [sortingGames, setSortingGames] = useState([]);
   const [sortingRecommendations, setSortingRecommendations] = useState({});
@@ -69,6 +73,8 @@ function PairwiseEngine({ token, games, onRefresh }) {
     setLoading(true);
     setErrorMsg('');
     setOutcome(null);
+    setShowDetailsA(false);
+    setShowDetailsB(false);
     try {
       const res = await fetch('/api/pairwise/match', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -524,37 +530,85 @@ function PairwiseEngine({ token, games, onRefresh }) {
 
           <div className="pairwise-arena">
             {/* Game A Card (Left) */}
-            <div className="glass-panel voter-card left" onClick={() => handleVote(match.gameA.game_id)}>
-              <div>
-                <h2 className="voter-game-title">{match.gameA.title}</h2>
-                <div className="voter-game-subtitle">
+            <div className="glass-panel voter-card left" style={{ padding: '16px', gap: '12px' }}>
+              <div onClick={() => handleVote(match.gameA.game_id)} style={{ cursor: 'pointer' }}>
+                <h2 className="voter-game-title" style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameA.title}</h2>
+                <div className="voter-game-subtitle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   Elo rating: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{match.gameA.elo_rating}</span> ({match.gameA.match_count} matches)
                 </div>
-                {renderPillars(profileA, true)}
               </div>
-              <div className="vote-cta">Select Game</div>
+
+              {/* Accordion Toggle */}
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={(e) => { e.stopPropagation(); setShowDetailsA(!showDetailsA); }}
+                style={{ fontSize: '0.75rem', padding: '4px 10px', width: 'auto', margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                {showDetailsA ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {showDetailsA ? 'Hide Details' : 'View Details'}
+              </button>
+
+              {/* Accordion Content */}
+              {showDetailsA && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)', textAlign: 'left' }}>
+                  {renderPillars(profileA, true)}
+                </div>
+              )}
+
+              <button 
+                className="btn btn-primary" 
+                onClick={() => handleVote(match.gameA.game_id)}
+                style={{ width: '100%', fontSize: '0.85rem', padding: '8px 12px' }}
+              >
+                Prefer {match.gameA.title}
+              </button>
             </div>
 
             {/* Versus Divider */}
             <div className="versus-divider">
-              <div className="vs-circle">VS</div>
+              <div className="vs-circle" style={{ width: '42px', height: '42px', fontSize: '0.95rem' }}>VS</div>
             </div>
 
             {/* Game B Card (Right) */}
-            <div className="glass-panel voter-card right" onClick={() => handleVote(match.gameB.game_id)}>
-              <div>
-                <h2 className="voter-game-title">{match.gameB.title}</h2>
-                <div className="voter-game-subtitle">
+            <div className="glass-panel voter-card right" style={{ padding: '16px', gap: '12px' }}>
+              <div onClick={() => handleVote(match.gameB.game_id)} style={{ cursor: 'pointer' }}>
+                <h2 className="voter-game-title" style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameB.title}</h2>
+                <div className="voter-game-subtitle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   Elo rating: <span style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{match.gameB.elo_rating}</span> ({match.gameB.match_count} matches)
                 </div>
-                {renderPillars(profileB, false)}
               </div>
-              <div className="vote-cta">Select Game</div>
+
+              {/* Accordion Toggle */}
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={(e) => { e.stopPropagation(); setShowDetailsB(!showDetailsB); }}
+                style={{ fontSize: '0.75rem', padding: '4px 10px', width: 'auto', margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                {showDetailsB ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {showDetailsB ? 'Hide Details' : 'View Details'}
+              </button>
+
+              {/* Accordion Content */}
+              {showDetailsB && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-color)', textAlign: 'left' }}>
+                  {renderPillars(profileB, false)}
+                </div>
+              )}
+
+              <button 
+                className="btn btn-primary" 
+                onClick={() => handleVote(match.gameB.game_id)}
+                style={{ width: '100%', fontSize: '0.85rem', padding: '8px 12px' }}
+              >
+                Prefer {match.gameB.title}
+              </button>
             </div>
           </div>
           
-          <div style={{ textAlign: 'center', marginTop: '28px' }}>
-            <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={fetchNextMatch}>
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <button className="btn btn-secondary" style={{ width: 'auto', fontSize: '0.85rem', padding: '6px 16px' }} onClick={fetchNextMatch}>
               Skip Match / Get Another
             </button>
           </div>
