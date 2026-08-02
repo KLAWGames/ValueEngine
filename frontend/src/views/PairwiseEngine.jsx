@@ -270,7 +270,7 @@ function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
     );
   }
 
-  if (activeTab === 'sort' && sortingOutcome) {
+  if (activeMode === 'sort' && sortingOutcome) {
     return (
       <div className="glass-panel" style={{ padding: '40px', maxWidth: '580px', margin: '40px auto' }}>
         <div style={{ display: 'flex', justifyContent: 'center', color: '#10b981', marginBottom: '20px' }}>
