@@ -29,13 +29,17 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
     fetchTimeline();
   }, [token, games]);
 
+  // Defensive Array Fallbacks
+  const safeGames = Array.isArray(games) ? games : [];
+  const safeSubscriptions = Array.isArray(subscriptions) ? subscriptions : [];
+
   // Aggregated general stats
-  const totalInvestment = games.reduce((sum, g) => sum + g.total_cost, 0);
-  const totalHours = games.reduce((sum, g) => sum + g.total_hours, 0);
+  const totalInvestment = safeGames.reduce((sum, g) => sum + (parseFloat(g?.total_cost) || 0), 0);
+  const totalHours = safeGames.reduce((sum, g) => sum + (parseFloat(g?.total_hours) || 0), 0);
   const averageCph = totalHours > 0 ? totalInvestment / totalHours : 0;
 
   // Games with play hours logged
-  const playedGames = games.filter(g => g.total_hours > 0);
+  const playedGames = safeGames.filter(g => (parseFloat(g?.total_hours) || 0) > 0);
 
   // Playtime-based filtered played games for Economic Leaderboard (excluding free/f2p by default)
   const filteredPlayedGames = playedGames.filter(g => {
@@ -50,12 +54,12 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
     .slice(0, 10);
 
   // Top 10 Joy Games (ELO)
-  const topJoyGames = [...games]
-    .sort((a, b) => b.elo_rating - a.elo_rating)
+  const topJoyGames = [...safeGames]
+    .sort((a, b) => (b.elo_rating || 1200) - (a.elo_rating || 1200))
     .slice(0, 10);
 
   // "What to Play" Recommendations
-  const recommendationCandidates = games.filter(g => {
+  const recommendationCandidates = safeGames.filter(g => {
     const isRetired = g.status === 'Finished' || g.status === 'Did not Finish' || g.status === 'No longer playing' || g.status === 'Uninstalled' || g.unplayed;
     const isLowScore = g.score_100 !== null && g.score_100 < 50;
     const isWontPlay = !!g.wont_play_again;
