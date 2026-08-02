@@ -552,21 +552,29 @@ function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
 
           <div className="pairwise-arena">
             {/* Game A Card (Left) */}
-            <div className="glass-panel voter-card left" style={{ padding: '12px', gap: '8px', background: 'rgba(167, 139, 250, 0.05)', border: '1px solid var(--primary)' }}>
-              <div onClick={() => handleVote(match.gameA.game_id)} style={{ cursor: 'pointer', textAlign: 'center' }}>
-                <h2 className="voter-game-title" style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameA.title}</h2>
-                <div className="voter-game-subtitle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            <div 
+              className="glass-panel voter-card left" 
+              style={{ 
+                padding: '24px 16px', 
+                gap: '8px', 
+                background: 'rgba(167, 139, 250, 0.15)', 
+                border: '2px solid var(--primary)',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, background 0.2s',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}
+              onClick={() => handleVote(match.gameA.game_id)}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'; }}
+            >
+              <div style={{ textAlign: 'center' }}>
+                <h2 className="voter-game-title" style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 8px 0', color: '#fff' }}>{match.gameA.title}</h2>
+                <div className="voter-game-subtitle" style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
                   Elo rating: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{match.gameA.elo_rating}</span>
                 </div>
               </div>
-
-              <button 
-                className="btn btn-primary" 
-                onClick={() => handleVote(match.gameA.game_id)}
-                style={{ width: '100%', fontSize: '0.9rem', padding: '10px 12px', fontWeight: 'bold' }}
-              >
-                Prefer {match.gameA.title}
-              </button>
             </div>
 
             {/* Versus Divider */}
@@ -575,31 +583,44 @@ function PairwiseEngine({ token, games, onRefresh, onNavigate }) {
             </div>
 
             {/* Game B Card (Right) */}
-            <div className="glass-panel voter-card right" style={{ padding: '12px', gap: '8px', background: 'rgba(6, 182, 212, 0.05)', border: '1px solid var(--cyan)' }}>
-              <div onClick={() => handleVote(match.gameB.game_id)} style={{ cursor: 'pointer', textAlign: 'center' }}>
-                <h2 className="voter-game-title" style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: '0 0 4px 0' }}>{match.gameB.title}</h2>
-                <div className="voter-game-subtitle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            <div 
+              className="glass-panel voter-card right" 
+              style={{ 
+                padding: '24px 16px', 
+                gap: '8px', 
+                background: 'rgba(6, 182, 212, 0.15)', 
+                border: '2px solid var(--secondary)',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, background 0.2s',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}
+              onClick={() => handleVote(match.gameB.game_id)}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.background = 'rgba(6, 182, 212, 0.25)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(6, 182, 212, 0.15)'; }}
+            >
+              <div style={{ textAlign: 'center' }}>
+                <h2 className="voter-game-title" style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 8px 0', color: '#fff' }}>{match.gameB.title}</h2>
+                <div className="voter-game-subtitle" style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
                   Elo rating: <span style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{match.gameB.elo_rating}</span>
                 </div>
               </div>
-
-              <button 
-                className="btn btn-primary" 
-                onClick={() => handleVote(match.gameB.game_id)}
-                style={{ width: '100%', fontSize: '0.9rem', padding: '10px 12px', fontWeight: 'bold' }}
-              >
-                Prefer {match.gameB.title}
-              </button>
             </div>
           </div>
           
-          <div style={{ textAlign: 'center', marginTop: '16px' }}>
-            <button className="btn btn-secondary" style={{ width: 'auto', fontSize: '0.85rem', padding: '6px 16px', marginRight: '8px' }} onClick={fetchNextMatch}>
-              Skip Match
+          <div style={{ textAlign: 'center', marginTop: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            <button className="btn btn-secondary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 24px', fontSize: '0.85rem' }} onClick={() => handleVote('neither')}>
+              Neither was memorable (Skip & penalty)
             </button>
-            <button className="btn btn-secondary" style={{ width: 'auto', fontSize: '0.85rem', padding: '6px 16px' }} onClick={() => setActiveMode(null)}>
-              Change Arena Mode
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn btn-secondary" style={{ background: 'transparent', border: '1px dashed var(--border-color)', padding: '6px 16px', fontSize: '0.85rem' }} onClick={fetchNextMatch}>
+                Skip Match
+              </button>
+              <button className="btn btn-secondary" style={{ background: 'transparent', border: '1px solid var(--border-color)', padding: '6px 16px', fontSize: '0.85rem' }} onClick={() => setActiveMode(null)}>
+                Change Arena Mode
+              </button>
+            </div>
           </div>
         </>
       ) : activeMode === 'sort' ? (
