@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CreditCard, Plus, Edit, Trash2, ToggleLeft, ToggleRight, X, AlertCircle } from 'lucide-react';
 
-function Subscriptions({ token, subscriptions, games = [], onRefresh }) {
+function Subscriptions({ token, subscriptions, games = [], onRefresh, onTriggerEditGame }) {
   const [activeModal, setActiveModal] = useState(null); // 'addSub' | 'editSub'
   const [selectedSub, setSelectedSub] = useState(null);
 
@@ -218,6 +218,37 @@ function Subscriptions({ token, subscriptions, games = [], onRefresh }) {
                       <span style={{ fontSize: '0.95rem', fontWeight: '800', color: efficiency.color }}>{efficiency.grade}</span>
                     </div>
                   </div>
+
+                  {/* Attached games list */}
+                  {subGames.length > 0 && (
+                    <div style={{ marginTop: '14px' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Attached Games</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {subGames.map(g => (
+                          <div 
+                            key={g.game_id} 
+                            onClick={() => onTriggerEditGame && onTriggerEditGame(g)}
+                            style={{
+                              fontSize: '0.75rem',
+                              background: 'rgba(255,255,255,0.05)',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              color: '#fff',
+                              cursor: 'pointer',
+                              border: '1px solid var(--border-color)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="Click to view details & edit game"
+                          >
+                            <span style={{ fontWeight: '600' }}>{g.title}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>({(g.total_hours || 0).toFixed(1)}h)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>

@@ -264,10 +264,21 @@ function App() {
               subscriptions={subscriptions} 
               games={games}
               onRefresh={() => { fetchSubscriptions(); fetchGames(); }}
+              onTriggerEditGame={(game) => {
+                setEditGameOnLoad(game);
+                setActiveTab('ledger');
+              }}
             />
           )}
           {activeTab === 'recommendations' && (
-            <RecommendationView token={token} games={games} />
+            <RecommendationView 
+              token={token} 
+              games={games} 
+              onTriggerEditGame={(game) => {
+                setEditGameOnLoad(game);
+                setActiveTab('ledger');
+              }}
+            />
           )}
           {activeTab === 'settings' && (
             <div className="glass-panel settings-view" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>

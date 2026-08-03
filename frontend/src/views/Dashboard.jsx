@@ -331,6 +331,7 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
             {recentWeeklyGames.map(game => (
               <div 
                 key={game.game_id} 
+                onClick={() => onTriggerEditGame && onTriggerEditGame(game)}
                 style={{ 
                   background: 'rgba(255,255,255,0.03)', 
                   border: '1px solid var(--border-color)', 
@@ -338,8 +339,11 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
                   padding: '12px 14px',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
                 }}
+                title="Click to view details & edit game"
               >
                 <div>
                   <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#fff' }}>{game.title}</div>
@@ -437,7 +441,13 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
           ) : (
             <div className="leaderboard-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {topValueGames.map((game, idx) => (
-                <div key={game.game_id} className="leaderboard-item" style={{ padding: '10px 14px' }}>
+                <div 
+                  key={game.game_id} 
+                  className="leaderboard-item" 
+                  style={{ padding: '10px 14px', cursor: 'pointer' }}
+                  onClick={() => onTriggerEditGame && onTriggerEditGame(game)}
+                  title="Click to view details & edit game"
+                >
                   <div className="game-title-badge">
                     <span className="rank-number" style={{ background: 'rgba(8, 145, 178, 0.1)', color: 'var(--cyan)' }}>#{idx + 1}</span>
                     <span className="game-name" style={{ fontSize: '0.95rem' }}>{game.title}</span>
@@ -460,7 +470,13 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
           ) : (
             <div className="leaderboard-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {topJoyGames.map((game, idx) => (
-                <div key={game.game_id} className="leaderboard-item" style={{ padding: '10px 14px' }}>
+                <div 
+                  key={game.game_id} 
+                  className="leaderboard-item" 
+                  style={{ padding: '10px 14px', cursor: 'pointer' }}
+                  onClick={() => onTriggerEditGame && onTriggerEditGame(game)}
+                  title="Click to view details & edit game"
+                >
                   <div className="game-title-badge">
                     <span className="rank-number" style={{ background: 'rgba(168, 85, 247, 0.1)', color: 'var(--primary)' }}>#{idx + 1}</span>
                     <span className="game-name" style={{ fontSize: '0.95rem' }}>{game.title}</span>
@@ -485,7 +501,13 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {whatToPlayRecommendations.map(game => (
-                  <div key={game.game_id} className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)' }}>
+                  <div 
+                    key={game.game_id} 
+                    className="glass-panel" 
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                    onClick={() => onTriggerEditGame && onTriggerEditGame(game)}
+                    title="Click to view details & edit game"
+                  >
                     <div>
                       <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{game.title}</h4>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Playtime: {parseFloat(game.overall_hours || game.total_hours || 0).toFixed(1)} hrs • Status: {game.status}</span>

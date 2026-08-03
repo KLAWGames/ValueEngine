@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Compass, Flame, ArrowRight, Library, Globe, RefreshCcw } from 'lucide-react';
 
-function RecommendationView({ token, games }) {
+function RecommendationView({ token, games, onTriggerEditGame }) {
   const [mood, setMood] = useState('');
   const [mode, setMode] = useState('');
   
@@ -93,7 +93,12 @@ function RecommendationView({ token, games }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {libraryRecs.map(g => (
-                <div key={g.game_id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div 
+                  key={g.game_id} 
+                  onClick={() => onTriggerEditGame && onTriggerEditGame(g)}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                  title="Click to view details & edit game"
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '600' }}>{g.title}</h4>
                   </div>
