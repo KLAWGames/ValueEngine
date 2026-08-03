@@ -997,11 +997,27 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
   try {
     let randomPrompt = COMPARISON_PROMPTS[Math.floor(Math.random() * COMPARISON_PROMPTS.length)];
     let modeFilter = '';
+    let pillarFilter = '';
 
     if (randomPrompt.id === 'social') {
       modeFilter = "AND play_mode IN ('multi', 'both')";
     } else if (randomPrompt.id === 'solo') {
       modeFilter = "AND play_mode IN ('single', 'both')";
+    }
+
+    const categoryPromptMap = {
+      story: 'story',
+      mechanics: 'mechanics',
+      graphics: 'graphics',
+      challenge: 'challenge',
+      pacing: 'pacing',
+      relax: 'relaxation',
+      social: 'social'
+    };
+
+    if (categoryPromptMap[randomPrompt.id]) {
+      const pName = categoryPromptMap[randomPrompt.id];
+      pillarFilter = `AND game_id IN (SELECT game_id FROM qualitative_pillar_reviews WHERE pillar_name = '${pName}' AND rating IS NOT NULL)`;
     }
 
     let gamesRes = await db.query(`
@@ -1013,11 +1029,12 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
         AND has_opinion = TRUE
         AND NOT (overall_hours < 1 AND elo_rating < 1200)
         ${modeFilter}
+        ${pillarFilter}
     `, [req.user.userId]);
 
-    // Fallback: If less than 2 games match this specific single/multiplayer criteria,
+    // Fallback: If less than 2 games match this specific criteria,
     // fall back to a general comparison query with all played games.
-    if (gamesRes.rows.length < 2 && modeFilter !== '') {
+    if (gamesRes.rows.length < 2 && (modeFilter !== '' || pillarFilter !== '')) {
       randomPrompt = COMPARISON_PROMPTS.find(p => p.id === 'general');
       gamesRes = await db.query(`
         SELECT game_id, title, elo_rating, match_count, play_mode 

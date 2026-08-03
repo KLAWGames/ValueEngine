@@ -552,45 +552,45 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   // Helper labels for sliders
   const PILLAR_QUESTIONS = {
   story: [
-    { id: 'understand', text: 'Did you understand the story?', type: 'radio', options: ['Yes', 'No', 'Somewhat'] },
+    { id: 'understand', text: 'Did you understand the story?', type: 'radio', options: ['Yes', 'No', 'Somewhat', 'N/A'] },
     { id: 'impactful', text: 'Was the story impactful to you?', type: 'scale', min: 1, max: 5 },
-    { id: 'pacing', text: 'Was it slow or fast?', type: 'radio', options: ['Slow', 'Average', 'Fast'] }
+    { id: 'pacing', text: 'Was it slow or fast?', type: 'radio', options: ['Slow', 'Average', 'Fast', 'N/A'] }
   ],
   multiplayer: [
-    { id: 'coop_pvp', text: 'Is it Co-op or PvP?', type: 'radio', options: ['Co-op', 'PvP', 'Both'] },
+    { id: 'coop_pvp', text: 'Is it Co-op or PvP?', type: 'radio', options: ['Co-op', 'PvP', 'Both', 'N/A'] },
     { id: 'community', text: 'Is the community toxic or friendly?', type: 'scale', min: 1, max: 5 }
   ],
   mechanics: [
-    { id: 'intuitive', text: 'Are the controls intuitive?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'intuitive', text: 'Are the controls intuitive?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
     { id: 'depth', text: 'Does the gameplay have good depth/progression?', type: 'scale', min: 1, max: 5 }
   ],
   graphics: [
-    { id: 'unique', text: 'Is the art style unique?', type: 'radio', options: ['Yes', 'No'] },
-    { id: 'performance', text: 'Are there technical/performance issues?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'unique', text: 'Is the art style unique?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
+    { id: 'performance', text: 'Are there technical/performance issues?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ],
   challenge: [
     { id: 'punishing', text: 'Is it punishing or forgiving?', type: 'scale', min: 1, max: 5 },
-    { id: 'reflexes', text: 'Does it require fast reflexes?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'reflexes', text: 'Does it require fast reflexes?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ],
   relaxation: [
-    { id: 'chill', text: 'Is it a cozy/chill game?', type: 'radio', options: ['Yes', 'No'] },
-    { id: 'podcast', text: 'Can you play it while listening to a podcast?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'chill', text: 'Is it a cozy/chill game?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
+    { id: 'podcast', text: 'Can you play it while listening to a podcast?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ],
   pacing: [
-    { id: 'lulls', text: 'Are there frequent lulls?', type: 'radio', options: ['Yes', 'No'] },
-    { id: 'constant', text: 'Is the action constant?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'lulls', text: 'Are there frequent lulls?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
+    { id: 'constant', text: 'Is the action constant?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ],
   engagement: [
-    { id: 'lose_track', text: 'Do you lose track of time?', type: 'radio', options: ['Yes', 'No'] },
-    { id: 'easy_put_down', text: 'Is it easy to put down?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'lose_track', text: 'Do you lose track of time?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
+    { id: 'easy_put_down', text: 'Is it easy to put down?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ],
   social: [
-    { id: 'irl_friends', text: 'Do you play with IRL friends?', type: 'radio', options: ['Yes', 'No'] },
-    { id: 'comms', text: 'Does it require voice comms?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'irl_friends', text: 'Do you play with IRL friends?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
+    { id: 'comms', text: 'Does it require voice comms?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ],
   stress_intensity: [
-    { id: 'heart_rate', text: 'Does it raise your heart rate?', type: 'radio', options: ['Yes', 'No'] },
-    { id: 'exhausting', text: 'Is it mentally exhausting?', type: 'radio', options: ['Yes', 'No'] }
+    { id: 'heart_rate', text: 'Does it raise your heart rate?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
+    { id: 'exhausting', text: 'Is it mentally exhausting?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
   ]
 };
 
@@ -1114,25 +1114,47 @@ const pillarLabels = {
                               </div>
                               
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
-                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                  <input 
-                                    type="checkbox" 
-                                    checked={answers.impacted_enjoyment === 'true' || answers.impacted_enjoyment === true} 
-                                    onChange={(e) => handleQualitativeQuestionChange(key, 'impacted_enjoyment', e.target.checked)}
-                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                                  />
-                                  Did {pillarLabels[key]} impact your overall enjoyment of the game?
-                                </label>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.88rem', marginBottom: '6px', color: '#fff', fontWeight: '500' }}>
+                                    Did {pillarLabels[key]} impact your overall enjoyment of the game?
+                                  </label>
+                                  <div style={{ display: 'flex', gap: '14px', marginBottom: '4px' }}>
+                                    {['Yes', 'No', 'N/A'].map(opt => (
+                                      <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                        <input 
+                                          type="radio" 
+                                          name={`${key}_impacted_enjoyment`} 
+                                          value={opt} 
+                                          checked={answers.impacted_enjoyment === opt || (opt === 'Yes' && answers.impacted_enjoyment === true) || (opt === 'No' && answers.impacted_enjoyment === false)} 
+                                          onChange={(e) => handleQualitativeQuestionChange(key, 'impacted_enjoyment', e.target.value)}
+                                          style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                        />
+                                        {opt}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
 
-                                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                  <input 
-                                    type="checkbox" 
-                                    checked={pData.was_expected || false} 
-                                    onChange={(e) => handleQualitativeChange(key, 'was_expected', e.target.checked)}
-                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                                  />
-                                  {pillarLabels[key]} was something I was specifically looking for when I chose to play this game.
-                                </label>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.88rem', marginBottom: '6px', color: '#fff', fontWeight: '500' }}>
+                                    {pillarLabels[key]} was something I was specifically looking for when I chose to play this game.
+                                  </label>
+                                  <div style={{ display: 'flex', gap: '14px', marginBottom: '4px' }}>
+                                    {['Yes', 'No', 'N/A'].map(opt => (
+                                      <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                        <input 
+                                          type="radio" 
+                                          name={`${key}_was_expected`} 
+                                          value={opt} 
+                                          checked={(opt === 'Yes' && pData.was_expected === true) || (opt === 'No' && pData.was_expected === false) || (opt === 'N/A' && (pData.was_expected === 'N/A' || pData.was_expected === null))} 
+                                          onChange={(e) => handleQualitativeChange(key, 'was_expected', e.target.value === 'Yes' ? true : (e.target.value === 'No' ? false : 'N/A'))}
+                                          style={{ accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                        />
+                                        {opt}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
 
                                 {PILLAR_QUESTIONS[key]?.map(q => (
                                   <div key={q.id} style={{ marginLeft: '24px' }}>
