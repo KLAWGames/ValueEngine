@@ -362,8 +362,8 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
           total_hours: parseFloat(totalHoursInput || 0),
           unplayed,
           status,
-          score_100: status !== 'playing' && score100 !== '' ? parseInt(score100) : null,
-          recommend: status !== 'playing' && recommend !== '' ? (recommend === 'true') : null,
+          score_100: score100 !== '' ? parseInt(score100) : null,
+          recommend: recommend !== '' ? (recommend === 'true') : null,
           categories: selectedCategories,
           play_mode: playMode,
           has_opinion: hasOpinion
@@ -532,21 +532,26 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
         answers = JSON.parse(q.reason_text || '{}');
       } catch(e) {}
       answers[qId] = value;
+      // Auto-enable 0-10 rating if answering a question (unless explicitly N/A)
+      const currentRating = (q.rating === null && value !== 'N/A') ? 5 : (value === 'N/A' && qId === 'impacted_enjoyment' ? null : q.rating);
       return {
         ...prev,
-        [key]: { ...q, reason_text: JSON.stringify(answers) }
+        [key]: { ...q, rating: currentRating, reason_text: JSON.stringify(answers) }
       };
     });
   };
 
   const handleQualitativeChange = (key, field, val) => {
-    setQualitative(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        [field]: val
-      }
-    }));
+    setQualitative(prev => {
+      const q = prev[key] || { rating: null, reason_text: '{}', was_expected: false, is_top_pillar: false };
+      return {
+        ...prev,
+        [key]: {
+          ...q,
+          [field]: val
+        }
+      };
+    });
   };
 
   // Helper labels for sliders
@@ -1096,8 +1101,37 @@ const pillarLabels = {
                             <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)' }}>
                               
                               <div className="form-group" style={{ marginBottom: '16px' }}>
-                                <label className="form-label">Rating (0-10)</label>
-                                {hasRating && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                  <label className="form-label" style={{ margin: 0 }}>Rating (0-10)</label>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={!hasRating}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          handleQualitativeChange(key, 'rating', null);
+                                        } else {
+                                          handleQualitativeChange(key, 'rating', 5);
+                                        }
+                                      }}
+                                      style={{ accentColor: 'var(--primary)' }}
+                                    />
+                                    Mark as N/A (Does Not Apply)
+                                  </label>
+                                </div>
+                                {!hasRating ? (
+                                  <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px dashed var(--border-color)' }}>
+                                    <span>Pillar currently marked N/A.</span>
+                                    <button 
+                                      type="button" 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '4px 12px', fontSize: '0.8rem', width: 'auto' }}
+                                      onClick={() => handleQualitativeChange(key, 'rating', 5)}
+                                    >
+                                      Enable 0-10 Rating
+                                    </button>
+                                  </div>
+                                ) : (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                     <input
                                       type="range"
@@ -1105,10 +1139,10 @@ const pillarLabels = {
                                       max="10"
                                       className="custom-range-slider"
                                       style={{ flex: 1 }}
-                                      value={pData.rating}
+                                      value={pData.rating ?? 5}
                                       onChange={(e) => handleQualitativeChange(key, 'rating', e.target.value)}
                                     />
-                                    <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right' }}>{pData.rating}/10</span>
+                                    <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right', color: 'var(--primary)' }}>{pData.rating}/10</span>
                                   </div>
                                 )}
                               </div>
