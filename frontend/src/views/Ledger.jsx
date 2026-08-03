@@ -958,9 +958,8 @@ const pillarLabels = {
               )}
 
 
-              {/* Status, Surveys, and Categories tags: available when game has hours logged or is played */}
-              {Boolean(parseFloat(totalHoursInput || 0) > 0) && (
-                <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              {/* Status, Surveys, and Categories tags */}
+              <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   {/* Status Dropdown */}
                   <div className="form-group" style={{ marginBottom: '16px' }}>
                     <label className="form-label">Game Status</label>
@@ -1339,7 +1338,6 @@ const pillarLabels = {
                     </div>
                   </div>
                 </div>
-              )}
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setActiveModal(null)}>
