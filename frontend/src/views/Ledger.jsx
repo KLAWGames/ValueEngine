@@ -1035,8 +1035,8 @@ const pillarLabels = {
                     </div>
                   )}
 
-              {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed) */}
-              {!unplayed && recommend !== '' && recommend !== null && (
+              {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed or No Opinion) */}
+              {!unplayed && hasOpinion && (
                 <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginBottom: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                     <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: 0 }}>
