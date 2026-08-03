@@ -17,7 +17,6 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   const [baseCost, setBaseCost] = useState('0');
   const [totalHoursInput, setTotalHoursInput] = useState('0');
   const [unplayed, setUnplayed] = useState(false);
-  const [hasOpinion, setHasOpinion] = useState(true);
   const [playMode, setPlayMode] = useState('single');
   const [status, setStatus] = useState('playing');
   const [score100, setScore100] = useState('');
@@ -149,6 +148,9 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   const [playtimeFilter, setPlaytimeFilter] = useState('all');
   const [ratingFilter, setRatingFilter] = useState('all');
 
+  // Derived state for hasOpinion
+  const hasOpinion = !unplayed && recommend !== '';
+
   // Form states - Add Expense
   const [expDesc, setExpDesc] = useState('');
   const [expCost, setExpCost] = useState('');
@@ -221,7 +223,6 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setBaseCost('0');
     setTotalHoursInput('0');
     setUnplayed(true);
-    setHasOpinion(false);
     setPlayMode('single');
     setStatus('playing');
     setScore100('');
@@ -250,7 +251,6 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setBaseCost(game.base_cost.toString());
     setTotalHoursInput(game.total_hours.toString());
     setUnplayed(game.unplayed === true || game.unplayed === 1 || game.unplayed === 'true');
-    setHasOpinion(game.has_opinion === true || game.has_opinion === 1 || game.has_opinion === 'true' || game.has_opinion === undefined);
     setPlayMode(game.play_mode || 'single');
     setStatus(game.status || 'playing');
     setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
@@ -946,7 +946,7 @@ const pillarLabels = {
                       onChange={(e) => {
                         const val = e.target.checked;
                         setUnplayed(val);
-                        if (val) setHasOpinion(false); // unplayed games have no opinion
+                        if (val) setRecommend(''); // unplayed games have no recommend or opinion
                       }}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                     />
@@ -981,46 +981,28 @@ const pillarLabels = {
                   </div>
 
                   {/* Recommendations / Surveys section */}
-                  <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
-                      <div style={{ gridColumn: '1 / -1', marginBottom: '4px' }}>
-                        <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={!hasOpinion}
-                            onChange={(e) => {
-                              const notEnough = e.target.checked;
-                              setHasOpinion(!notEnough);
-                              if (notEnough) {
-                                setRecommend('');
-                              }
-                            }}
-                            style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
-                          />
-                          <span style={{ fontWeight: '600', fontSize: '0.95rem', color: '#fff' }}>
-                            I haven't played enough to form an opinion yet
-                          </span>
-                        </label>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '26px' }}>
-                          Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
-                        </p>
+                  {!unplayed && (
+                    <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Would you recommend this game to others?</label>
+                        <select
+                          className="form-input form-select"
+                          value={recommend}
+                          onChange={(e) => setRecommend(e.target.value)}
+                          style={{ marginTop: '8px' }}
+                        >
+                          <option value="">Not sure yet</option>
+                          <option value="true">Yes, definitely</option>
+                          <option value="false">No, not really</option>
+                        </select>
+                        {recommend === '' && (
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                            <strong style={{ color: '#fff' }}>NOT SURE:</strong> Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
+                          </p>
+                        )}
                       </div>
-
-                      {hasOpinion === true && (
-                        <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
-                          <label className="form-label">Would you recommend this game to others?</label>
-                          <select
-                            className="form-input form-select"
-                            value={recommend}
-                            onChange={(e) => setRecommend(e.target.value)}
-                            style={{ marginTop: '8px' }}
-                          >
-                            <option value="">Not sure yet</option>
-                            <option value="true">Yes, definitely</option>
-                            <option value="false">No, not really</option>
-                          </select>
-                        </div>
-                      )}
                     </div>
+                  )}
 
               {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed or No Opinion) */}
               {!unplayed && hasOpinion === true && (
