@@ -17,6 +17,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   const [baseCost, setBaseCost] = useState('0');
   const [totalHoursInput, setTotalHoursInput] = useState('0');
   const [unplayed, setUnplayed] = useState(false);
+  const [hasOpinion, setHasOpinion] = useState(true);
   const [playMode, setPlayMode] = useState('single');
   const [status, setStatus] = useState('playing');
   const [score100, setScore100] = useState('');
@@ -148,9 +149,6 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   const [playtimeFilter, setPlaytimeFilter] = useState('all');
   const [ratingFilter, setRatingFilter] = useState('all');
 
-  // Derived state for hasOpinion
-  const hasOpinion = !unplayed && recommend !== '';
-
   // Form states - Add Expense
   const [expDesc, setExpDesc] = useState('');
   const [expCost, setExpCost] = useState('');
@@ -223,6 +221,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setBaseCost('0');
     setTotalHoursInput('0');
     setUnplayed(true);
+    setHasOpinion(false);
     setPlayMode('single');
     setStatus('playing');
     setScore100('');
@@ -251,6 +250,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setBaseCost(game.base_cost.toString());
     setTotalHoursInput(game.total_hours.toString());
     setUnplayed(game.unplayed === true || game.unplayed === 1 || game.unplayed === 'true');
+    setHasOpinion(game.has_opinion === true || game.has_opinion === 1 || game.has_opinion === 'true' || game.has_opinion === undefined);
     setPlayMode(game.play_mode || 'single');
     setStatus(game.status || 'playing');
     setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
@@ -946,7 +946,7 @@ const pillarLabels = {
                       onChange={(e) => {
                         const val = e.target.checked;
                         setUnplayed(val);
-                        if (val) setRecommend(''); // unplayed games have no recommend or opinion
+                        if (val) setHasOpinion(false); // unplayed games skip opinion
                       }}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                     />
@@ -980,7 +980,7 @@ const pillarLabels = {
                     </select>
                   </div>
 
-                  {/* Recommendations / Surveys section */}
+                  {/* Recommendations section */}
                   {!unplayed && (
                     <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -995,26 +995,60 @@ const pillarLabels = {
                           <option value="true">Yes, definitely</option>
                           <option value="false">No, not really</option>
                         </select>
-                        {recommend === '' && (
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                            <strong style={{ color: '#fff' }}>NOT SURE:</strong> Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
-                          </p>
-                        )}
                       </div>
                     </div>
                   )}
 
-              {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed or No Opinion) */}
-              {!unplayed && hasOpinion === true && (
+              {/* Qualitative Attribute Profiling Deep Dive */}
+              {!unplayed && (
                 <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: 0 }}>
+                  
+                  {/* Rate this game toggle */}
+                  <div style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: '0 0 12px 0' }}>
                       <Sparkles size={16} />
                       Who is this game for and why?
                     </h3>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent)' }}>
-                      Overall Score: {(() => {
-                        let totalWeightedScore = 0;
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Would you like to rate this game?</label>
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          <input
+                            type="radio"
+                            name="has_opinion"
+                            value="true"
+                            checked={hasOpinion === true}
+                            onChange={() => setHasOpinion(true)}
+                            style={{ accentColor: 'var(--primary)' }}
+                          />
+                          Yes
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          <input
+                            type="radio"
+                            name="has_opinion"
+                            value="false"
+                            checked={hasOpinion === false}
+                            onChange={() => setHasOpinion(false)}
+                            style={{ accentColor: 'var(--primary)' }}
+                          />
+                          Not yet
+                        </label>
+                      </div>
+                      {hasOpinion === false && (
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '12px' }}>
+                          <strong>NOT YET:</strong> Excludes this game from Pairwise Joy matchmaking and qualitative slider ratings, but retains it in CPH calculation.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {hasOpinion === true && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '14px' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+                          Overall Score: {(() => {
+                            let totalWeightedScore = 0;
                         let totalMaxWeight = 0;
                         Object.keys(pillarLabels).forEach(key => {
                           const p = qualitative[key];
@@ -1231,6 +1265,8 @@ const pillarLabels = {
                       );
                     })}
                   </div>
+                  </>
+                )}
                 </div>
               )}
 
