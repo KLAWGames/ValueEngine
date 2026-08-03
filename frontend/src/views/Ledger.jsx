@@ -254,7 +254,10 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setPlayMode(game.play_mode || 'single');
     setStatus(game.status || 'playing');
     setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
-    setRecommend(game.recommend !== null && game.recommend !== undefined ? game.recommend.toString() : '');
+    let initialRec = '';
+    if (game.recommend === true || game.recommend === 1 || game.recommend === 'true') initialRec = 'true';
+    else if (game.recommend === false || game.recommend === 0 || game.recommend === 'false') initialRec = 'false';
+    setRecommend(initialRec);
     setSelectedCategories(game.categories || []);
     setSuggestedCategories([]);
     setCustomCategory('');
@@ -1005,34 +1008,16 @@ const pillarLabels = {
                       {hasOpinion === true && (
                         <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
                           <label className="form-label">Would you recommend this game to others?</label>
-                          <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                              <input
-                                type="radio"
-                                name="recommend"
-                                value="true"
-                                checked={recommend === 'true'}
-                                onChange={(e) => {
-                                  setRecommend(e.target.value);
-                                }}
-                                style={{ accentColor: 'var(--primary)' }}
-                              />
-                              Yes, definitely
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                              <input
-                                type="radio"
-                                name="recommend"
-                                value="false"
-                                checked={recommend === 'false'}
-                                onChange={(e) => {
-                                  setRecommend(e.target.value);
-                                }}
-                                style={{ accentColor: 'var(--primary)' }}
-                              />
-                              No, not really
-                            </label>
-                          </div>
+                          <select
+                            className="form-input form-select"
+                            value={recommend}
+                            onChange={(e) => setRecommend(e.target.value)}
+                            style={{ marginTop: '8px' }}
+                          >
+                            <option value="">Not sure yet</option>
+                            <option value="true">Yes, definitely</option>
+                            <option value="false">No, not really</option>
+                          </select>
                         </div>
                       )}
                     </div>
