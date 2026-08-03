@@ -958,8 +958,8 @@ const pillarLabels = {
               )}
 
 
-              {/* Status, Surveys, and Categories tags: only available once hours > 0 */}
-              {parseFloat(totalHoursInput || 0) > 0 && (
+              {/* Status, Surveys, and Categories tags: available when game has hours logged or is played */}
+              {Boolean(parseFloat(totalHoursInput || 0) > 0) && (
                 <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   {/* Status Dropdown */}
                   <div className="form-group" style={{ marginBottom: '16px' }}>
@@ -979,8 +979,7 @@ const pillarLabels = {
                   </div>
 
                   {/* Recommendations / Surveys section */}
-                  {parseFloat(totalHoursInput || 0) > 0 && (
-                    <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
+                  <div className="form-grid" style={{ marginBottom: '20px', background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', rowGap: '12px' }}>
                       <div style={{ gridColumn: '1 / -1', marginBottom: '4px' }}>
                         <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                           <input
@@ -1038,7 +1037,6 @@ const pillarLabels = {
                         </div>
                       )}
                     </div>
-                  )}
 
               {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed or No Opinion) */}
               {!unplayed && hasOpinion && (
