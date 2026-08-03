@@ -142,6 +142,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   // Form states - Log Play Session
   const [logHours, setLogHours] = useState('');
   const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isHistoricalLog, setIsHistoricalLog] = useState(false);
   const [historyLogs, setHistoryLogs] = useState([]);
   const [addToTotal, setAddToTotal] = useState(true);
   const [overallHoursInput, setOverallHoursInput] = useState('0');
@@ -274,6 +275,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSelectedGame(game);
     setLogHours('');
     setLogDate(new Date().toISOString().split('T')[0]);
+    setIsHistoricalLog(false);
     setAddToTotal(true);
     setOverallHoursInput(game.total_hours.toString());
     setActiveModal('logHours');
@@ -1338,9 +1340,30 @@ const pillarLabels = {
                     className="form-input"
                     value={logDate}
                     onChange={(e) => setLogDate(e.target.value)}
+                    disabled={isHistoricalLog}
                     required
                   />
                 </div>
+              </div>
+
+              <div style={{ marginTop: '-4px', marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={isHistoricalLog}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsHistoricalLog(checked);
+                      if (checked) {
+                        setLogDate('2000-01-01');
+                      } else {
+                        setLogDate(new Date().toISOString().split('T')[0]);
+                      }
+                    }}
+                    style={{ accentColor: 'var(--primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span>Historical Log / Don't remember date (Keeps out of "Played This Week")</span>
+                </label>
               </div>
 
               {/* Add to total checkbox */}

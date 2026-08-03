@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle, X } from 'lucide-react';
+import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle, X, Gamepad2 } from 'lucide-react';
 
 function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, onNavigate, onTriggerEditGame, token, onRefresh }) {
   const [selectedGameId, setSelectedGameId] = useState('');
@@ -7,6 +7,10 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
   const [moodAnalytics, setMoodAnalytics] = useState([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+
+  const recentWeeklyGames = games
+    .filter(g => (g.hours_last_7_days || 0) > 0)
+    .sort((a, b) => (b.hours_last_7_days || 0) - (a.hours_last_7_days || 0));
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -305,6 +309,53 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
           </button>
         </div>
       )}
+
+      {/* Games Played in the Last 7 Days */}
+      <div className="glass-panel" style={{ padding: '20px', marginBottom: '24px', background: 'rgba(99, 102, 241, 0.04)', borderColor: 'rgba(99, 102, 241, 0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <Gamepad2 size={18} style={{ color: 'var(--primary)' }} />
+            Games Played in the Last 7 Days
+          </h3>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            {recentWeeklyGames.length} title{recentWeeklyGames.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {recentWeeklyGames.length === 0 ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', background: 'rgba(0,0,0,0.15)', borderRadius: '8px' }}>
+            No active gameplay logged in the past 7 days.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+            {recentWeeklyGames.map(game => (
+              <div 
+                key={game.game_id} 
+                style={{ 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: '10px', 
+                  padding: '12px 14px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#fff' }}>{game.title}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Total: {game.total_hours.toFixed(1)}h
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Clock size={12} />
+                  +{game.hours_last_7_days.toFixed(1)}h
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="dashboard-grid" style={{ marginBottom: '24px' }}>
         <div className="glass-panel stat-card">

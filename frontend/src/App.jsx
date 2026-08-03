@@ -417,6 +417,7 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
   const [sessionHours, setSessionHours] = useState('1.0');
   const [totalDurationInput, setTotalDurationInput] = useState('');
   const [logDate, setLogDate] = useState(() => new Date().toISOString().substring(0, 10));
+  const [isHistorical, setIsHistorical] = useState(false);
   const [mood, setMood] = useState('');
   const [logging, setLogging] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -448,6 +449,8 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
         setTotalDurationInput((currentGame.total_hours || 0).toString());
         setMood('');
         setEntryMode('session');
+        setIsHistorical(false);
+        setLogDate(new Date().toISOString().substring(0, 10));
       }
     }
   }, [wizardIndex, mode, selectedGameIds, games]);
@@ -862,9 +865,30 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
                         className="form-input"
                         value={logDate}
                         onChange={e => setLogDate(e.target.value)}
+                        disabled={isHistorical}
                         required
                       />
                     </div>
+                  </div>
+
+                  <div style={{ marginTop: '-4px', marginBottom: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={isHistorical}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setIsHistorical(checked);
+                          if (checked) {
+                            setLogDate('2000-01-01');
+                          } else {
+                            setLogDate(new Date().toISOString().substring(0, 10));
+                          }
+                        }}
+                        style={{ accentColor: 'var(--primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      <span>Historical Log / Don't remember date (Keeps out of "Played This Week")</span>
+                    </label>
                   </div>
 
                   <div className="form-group">

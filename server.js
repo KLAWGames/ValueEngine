@@ -465,6 +465,11 @@ app.get('/api/games', authenticateToken, async (req, res) => {
       const totalHours = logsRes.rows[0].total ? parseFloat(logsRes.rows[0].total) : 0.00;
       const lastPlayedAt = logsRes.rows[0].last_played ? logsRes.rows[0].last_played : null;
 
+      // 2b. Sum up hours played in the last 7 days (excluding historical logs)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
+      const recentLogsRes = await db.query('SELECT SUM(hours_played) as total FROM play_logs WHERE game_id = $1 AND logged_date >= $2', [game.game_id, sevenDaysAgo]);
+      const hoursLast7Days = recentLogsRes.rows[0].total ? parseFloat(recentLogsRes.rows[0].total) : 0.00;
+
       // 3. Get qualitative profile from new qualitative_pillar_reviews table
       const qualRes = await db.query('SELECT pillar_name, rating, reason_text, was_expected, is_top_pillar FROM qualitative_pillar_reviews WHERE game_id = $1', [game.game_id]);
       
@@ -520,6 +525,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         total_cost: totalCost,
         total_hours: overallHours,
         last_played_at: lastPlayedAt,
+        hours_last_7_days: hoursLast7Days,
         cph,
         qualitative: qualitativeObj,
         categories
