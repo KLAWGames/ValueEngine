@@ -249,8 +249,8 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSubId(game.subscription_id || '');
     setBaseCost(game.base_cost.toString());
     setTotalHoursInput(game.total_hours.toString());
-    setUnplayed(game.unplayed || false);
-    setHasOpinion(game.has_opinion !== undefined ? game.has_opinion : true);
+    setUnplayed(game.unplayed === true || game.unplayed === 1 || game.unplayed === 'true');
+    setHasOpinion(game.has_opinion === true || game.has_opinion === 1 || game.has_opinion === 'true' || game.has_opinion === undefined);
     setPlayMode(game.play_mode || 'single');
     setStatus(game.status || 'playing');
     setScore100(game.score_100 !== null && game.score_100 !== undefined ? game.score_100.toString() : '');
@@ -1002,7 +1002,7 @@ const pillarLabels = {
                         </p>
                       </div>
 
-                      {hasOpinion && (
+                      {hasOpinion === true && (
                         <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
                           <label className="form-label">Would you recommend this game to others?</label>
                           <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
@@ -1038,7 +1038,7 @@ const pillarLabels = {
                     </div>
 
               {/* Qualitative Attribute Profiling Deep Dive (Hidden if Unplayed or No Opinion) */}
-              {!unplayed && hasOpinion && (
+              {!unplayed && hasOpinion === true && (
                 <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginBottom: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                     <h3 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', margin: 0 }}>
