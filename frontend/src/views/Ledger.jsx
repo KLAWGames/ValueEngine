@@ -766,7 +766,7 @@ const pillarLabels = {
                       <Star size={10} fill="var(--primary)" />
                       <span>Elo: {game.elo_rating}</span>
                     </div>
-                    {game.has_opinion && game.qualitative && (
+                    {Boolean(game.has_opinion) && game.qualitative && (
                       <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: 'var(--secondary)' }}>
                           <Sparkles size={10} />
@@ -803,7 +803,7 @@ const pillarLabels = {
                       </div>
                     )}
                     
-                    {game.has_opinion && game.recommend !== null && (
+                    {Boolean(game.has_opinion) && game.recommend !== null && (
                       <div className="review-highlight-item" style={{ color: game.recommend ? '#34d399' : '#f87171' }}>
                         <ThumbsUp size={10} style={{ transform: game.recommend ? 'none' : 'rotate(180deg)' }} />
                         <span>{game.recommend ? 'Recommends' : 'No Recommend'}</span>
@@ -1063,7 +1063,7 @@ const pillarLabels = {
                     </div>
                   </div>
                   
-                  <div className="form-grid" style={{ rowGap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {Object.keys(pillarLabels).map(key => {
                       const pData = qualitative[key] || { rating: null, reason_text: '{}', was_expected: false, is_top_pillar: false };
                       const isExpanded = expandedPillar === key;
@@ -1080,9 +1080,23 @@ const pillarLabels = {
                             style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? 'rgba(167, 139, 250, 0.1)' : 'transparent' }}
                             onClick={() => setExpandedPillar(isExpanded ? null : key)}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <span style={{ fontWeight: '600', color: hasRating ? '#fff' : 'var(--text-muted)' }}>{pillarLabels[key]}</span>
-                              {pData.is_top_pillar && <span className="status-badge" style={{ background: 'var(--accent)', color: '#000', fontSize: '0.65rem', padding: '2px 6px' }}>Top Pillar (2x)</span>}
+                              {pData.is_top_pillar && (
+                                <span style={{ 
+                                  background: 'var(--accent-glow)', 
+                                  color: 'var(--accent)', 
+                                  fontSize: '0.7rem', 
+                                  padding: '4px 10px', 
+                                  borderRadius: '20px',
+                                  border: '1px solid var(--accent)',
+                                  fontWeight: '600',
+                                  letterSpacing: '0.02em',
+                                  boxShadow: '0 0 10px var(--accent-glow)'
+                                }}>
+                                  Top Pillar (2x)
+                                </span>
+                              )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <span style={{ fontWeight: 'bold', color: hasRating ? 'var(--primary)' : 'var(--text-muted)' }}>
