@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle, X, Gamepad2 } from 'lucide-react';
+import { DollarSign, Clock, TrendingDown, TrendingUp, AlertTriangle, Coffee, Film, Flame, Trophy, Play, AlertCircle, X, Gamepad2, Plus } from 'lucide-react';
 
-function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, onNavigate, onTriggerEditGame, token, onRefresh }) {
+function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, onNavigate, onTriggerEditGame, token, onRefresh, onOpenLogTimeModal }) {
   const [selectedGameId, setSelectedGameId] = useState('');
   const [showFreeGames, setShowFreeGames] = useState(false);
   const [moodAnalytics, setMoodAnalytics] = useState([]);
@@ -355,6 +355,18 @@ function Dashboard({ games, subscriptions, subscriptionWaste, wasteBreakdown, on
             ))}
           </div>
         )}
+
+        <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            style={{ width: 'auto', padding: '8px 16px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => onOpenLogTimeModal && onOpenLogTimeModal()}
+          >
+            <Plus size={16} />
+            <span>+ Add Games Played This Week</span>
+          </button>
+        </div>
       </div>
 
       <div className="dashboard-grid" style={{ marginBottom: '24px' }}>

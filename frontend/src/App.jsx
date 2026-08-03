@@ -235,6 +235,7 @@ function App() {
               }}
               token={token}
               onRefresh={fetchGames}
+              onOpenLogTimeModal={() => setShowWelcomeModal(true)}
             />
           )}
           {activeTab === 'ledger' && (
