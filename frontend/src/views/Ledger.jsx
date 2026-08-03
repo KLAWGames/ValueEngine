@@ -363,7 +363,7 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
           base_cost: acqType === 'subscription' || acqType === 'free' || acqType === 'f2p' ? 0 : parseFloat(baseCost),
           qualitative,
           total_hours: parseFloat(totalHoursInput || 0),
-          unplayed,
+          unplayed: parseFloat(totalHoursInput || 0) > 0 ? false : unplayed,
           status,
           score_100: score100 !== '' ? parseInt(score100) : null,
           recommend: recommend !== '' ? (recommend === 'true') : null,
@@ -424,9 +424,11 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
       if (res.ok) {
         onRefresh();
         const addedHours = parseFloat(logHours);
+        const updatedHours = addToTotal ? (selectedGame.total_hours + addedHours) : selectedGame.total_hours;
         const updatedGame = {
           ...selectedGame,
-          total_hours: addToTotal ? (selectedGame.total_hours + addedHours) : selectedGame.total_hours
+          total_hours: updatedHours,
+          unplayed: updatedHours > 0 ? false : selectedGame.unplayed
         };
         setSelectedGame(updatedGame);
         openLogHoursModal(updatedGame);
@@ -455,9 +457,11 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
 
       if (res.ok) {
         onRefresh();
+        const parsedHours = parseFloat(overallHoursInput || 0);
         const updatedGame = {
           ...selectedGame,
-          total_hours: parseFloat(overallHoursInput || 0)
+          total_hours: parsedHours,
+          unplayed: parsedHours > 0 ? false : selectedGame.unplayed
         };
         setSelectedGame(updatedGame);
         alert('Overall playtime updated successfully!');

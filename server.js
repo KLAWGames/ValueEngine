@@ -651,7 +651,14 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
     const updatedSubId = updatedAcq === 'subscription' ? (subscription_id || game.subscription_id) : null;
     const updatedBaseCost = (updatedAcq === 'free' || updatedAcq === 'f2p') ? 0.00 : parseFloat(base_cost !== undefined ? base_cost : game.base_cost);
     
-    const finalUnplayed = unplayed !== undefined ? (unplayed === true || unplayed === 'true') : game.unplayed;
+    const updatedOverallHours = total_hours !== undefined ? parseFloat(total_hours) : game.overall_hours;
+    let finalUnplayed = unplayed !== undefined ? (unplayed === true || unplayed === 'true') : game.unplayed;
+    
+    // Automatically clear unplayed status if playtime is greater than 0
+    if (updatedOverallHours > 0) {
+      finalUnplayed = false;
+    }
+    
     const updatedPlayMode = play_mode || game.play_mode || 'single';
     const updatedWontPlay = wont_play_again !== undefined ? (wont_play_again === true || wont_play_again === 'true') : !!game.wont_play_again;
     const finalHasOpinion = has_opinion !== undefined ? (has_opinion === true || has_opinion === 'true') : game.has_opinion;
@@ -680,7 +687,6 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       newElo += 50; // Revert DNF
     }
 
-    const updatedOverallHours = total_hours !== undefined ? parseFloat(total_hours) : game.overall_hours;
 
     // Playtime Elo Boost (First time crossing 1 hour)
     if (updatedOverallHours >= 1 && (game.overall_hours || 0) < 1) {
@@ -927,9 +933,14 @@ app.post('/api/games/:id/logs', authenticateToken, async (req, res) => {
         eloBoost += 25;
       }
 
+      let statusUpdateClause = '';
+      if (gameRes.rows[0].status === 'unplayed') {
+        statusUpdateClause = ", status = 'playing'";
+      }
+
       await db.query(`
         UPDATE games 
-        SET overall_hours = overall_hours + $1, unplayed = 0, elo_rating = elo_rating + $2
+        SET overall_hours = overall_hours + $1, unplayed = 0, elo_rating = elo_rating + $2${statusUpdateClause}
         WHERE game_id = $3
       `, [hours, eloBoost, id]);
     }
