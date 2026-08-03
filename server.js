@@ -1028,6 +1028,8 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
         AND overall_hours > 0
         AND has_opinion = TRUE
         AND NOT (overall_hours < 1 AND elo_rating < 1200)
+        AND (score_100 IS NULL OR score_100 >= 65)
+        AND (recommend IS NULL OR recommend = TRUE)
         ${modeFilter}
         ${pillarFilter}
     `, [req.user.userId]);
@@ -1044,6 +1046,8 @@ app.get('/api/pairwise/match', authenticateToken, async (req, res) => {
           AND overall_hours > 0
           AND has_opinion = TRUE
           AND NOT (overall_hours < 1 AND elo_rating < 1200)
+          AND (score_100 IS NULL OR score_100 >= 65)
+          AND (recommend IS NULL OR recommend = TRUE)
       `, [req.user.userId]);
     }
 
