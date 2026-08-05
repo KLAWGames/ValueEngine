@@ -1193,50 +1193,19 @@ const pillarLabels = {
                             <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)' }}>
                               
                               <div className="form-group" style={{ marginBottom: '16px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                  <label className="form-label" style={{ margin: 0 }}>Rating (0-10)</label>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                    <input 
-                                      type="checkbox"
-                                      checked={!hasRating}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          handleQualitativeChange(key, 'rating', null);
-                                        } else {
-                                          handleQualitativeChange(key, 'rating', 5);
-                                        }
-                                      }}
-                                      style={{ accentColor: 'var(--primary)' }}
-                                    />
-                                    Mark as N/A (Does Not Apply)
-                                  </label>
+                                <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>Rating (0-10)</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="10"
+                                    className="custom-range-slider"
+                                    style={{ flex: 1 }}
+                                    value={pData.rating ?? 5}
+                                    onChange={(e) => handleQualitativeChange(key, 'rating', e.target.value)}
+                                  />
+                                  <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right', color: 'var(--primary)' }}>{pData.rating ?? 5}/10</span>
                                 </div>
-                                {!hasRating ? (
-                                  <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px dashed var(--border-color)' }}>
-                                    <span>Pillar currently marked N/A.</span>
-                                    <button 
-                                      type="button" 
-                                      className="btn btn-secondary" 
-                                      style={{ padding: '4px 12px', fontSize: '0.8rem', width: 'auto' }}
-                                      onClick={() => handleQualitativeChange(key, 'rating', 5)}
-                                    >
-                                      Enable 0-10 Rating
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <input
-                                      type="range"
-                                      min="0"
-                                      max="10"
-                                      className="custom-range-slider"
-                                      style={{ flex: 1 }}
-                                      value={pData.rating ?? 5}
-                                      onChange={(e) => handleQualitativeChange(key, 'rating', e.target.value)}
-                                    />
-                                    <span style={{ fontWeight: 'bold', width: '40px', textAlign: 'right', color: 'var(--primary)' }}>{pData.rating}/10</span>
-                                  </div>
-                                )}
                               </div>
                               
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
