@@ -474,14 +474,18 @@ app.get('/api/games', authenticateToken, async (req, res) => {
       const qualRes = await db.query('SELECT pillar_name, rating, reason_text, was_expected, is_top_pillar FROM qualitative_pillar_reviews WHERE game_id = $1', [game.game_id]);
       
       const defaultPillars = {
-        story: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        multiplayer: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        social: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        mechanics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        graphics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        challenge: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        relaxation: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-        pacing: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false }
+        story: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        multiplayer: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        social: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        mechanics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        gameplay_loop: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        game_design: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        interfaces: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        graphics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        challenge: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        relaxation: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        pacing: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+        replayability: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false }
       };
 
       const qualitativeObj = {};
@@ -583,7 +587,7 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 
     // 2. Insert Qualitative Pillar Reviews (using new deep dive schema)
     const q = qualitative || {};
-    const defaultPillarsList = ['story', 'multiplayer', 'social', 'mechanics', 'graphics', 'challenge', 'relaxation', 'pacing'];
+    const defaultPillarsList = ['story', 'multiplayer', 'social', 'mechanics', 'gameplay_loop', 'game_design', 'interfaces', 'graphics', 'challenge', 'relaxation', 'pacing', 'replayability'];
     for (const pillar of defaultPillarsList) {
       const pData = q[pillar] || {};
       const rating = pData.rating !== undefined && pData.rating !== null ? parseInt(pData.rating) : 5;
@@ -705,7 +709,7 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
       for (const [pillarName, pData] of Object.entries(qualitative)) {
         // rating can be null for N/A
         const rating = (pData.rating !== undefined && pData.rating !== null && pData.rating !== '') ? parseInt(pData.rating) : null;
-        const reason = pData.reason_text || '';
+        const reason = pData.reason_text || '{}';
         const expected = !!pData.was_expected;
         const isTop = !!pData.is_top_pillar;
 
@@ -716,8 +720,50 @@ app.put('/api/games/:id', authenticateToken, async (req, res) => {
 
         if (rating !== null) {
           const weight = isTop ? 2 : 1;
-          totalWeightedScore += (rating * weight);
-          totalMaxWeight += (10 * weight);
+          
+          let modifier = 0;
+          let answers = {};
+          try { answers = JSON.parse(reason); } catch (e) {}
+          
+          // Expectation Matrix
+          if (expected) {
+            const expectedQual = parseInt(answers.expected_quality);
+            if (!isNaN(expectedQual)) {
+              const isExpectedHigh = expectedQual >= 7;
+              const isExpectedLow = expectedQual <= 4;
+              const isActualHigh = rating >= 7;
+              const isActualLow = rating <= 4;
+
+              if (isExpectedLow && isActualHigh) modifier += 10; // Pleasantly Surprised
+              else if (isExpectedHigh && isActualHigh) modifier += 0; // Met High Expectations
+              else if (isExpectedHigh && isActualLow) modifier -= 20; // Massive Disappointment
+              else if (isExpectedLow && isActualLow) modifier -= 5; // Expected Trash
+            }
+          } else {
+            // Unexpected Gem
+            const isActualHigh = rating >= 7;
+            if (isActualHigh) modifier += 15;
+          }
+
+          // Sub-question modifiers
+          for (const [key, val] of Object.entries(answers)) {
+            if (key === 'expected_quality' || key === 'impacted_enjoyment' || key === 'burnout_threshold' || key === 'replay_frequency') continue;
+            const numVal = parseFloat(val);
+            if (!isNaN(numVal)) {
+              modifier += (numVal - 5) * 1;
+            } else if (val === 'Yes' || val === 'yes' || val === true) {
+              modifier += 2;
+            } else if (val === 'No' || val === 'no' || val === false) {
+              modifier -= 2;
+            }
+          }
+
+          let baseCatScore = rating * 10;
+          let finalCatScore = baseCatScore + modifier;
+          finalCatScore = Math.max(0, Math.min(100, finalCatScore)); // clamp 0-100
+
+          totalWeightedScore += (finalCatScore * weight);
+          totalMaxWeight += (100 * weight);
         }
       }
       

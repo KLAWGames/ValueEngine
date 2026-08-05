@@ -29,13 +29,18 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   const [isSuggesting, setIsSuggesting] = useState(false);
 
   const [qualitative, setQualitative] = useState({
-    story: 5,
-    multiplayer: 5,
-    mechanics: 5,
-    graphics: 5,
-    challenge: 5,
-    relaxation: 5,
-    pacing: 5
+    story: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    multiplayer: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    social: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    mechanics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    gameplay_loop: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    game_design: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    interfaces: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    graphics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    challenge: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    relaxation: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    pacing: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+    replayability: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false }
   });
 
   const fetchCategories = async () => {
@@ -230,14 +235,18 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSuggestedCategories([]);
     setCustomCategory('');
     setQualitative({
-      story: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      multiplayer: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      social: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      mechanics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      graphics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      challenge: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      relaxation: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      pacing: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false }
+      story: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      multiplayer: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      social: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      mechanics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      gameplay_loop: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      game_design: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      interfaces: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      graphics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      challenge: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      relaxation: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      pacing: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      replayability: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false }
     });
     setActiveModal('addGame');
   };
@@ -262,14 +271,18 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
     setSuggestedCategories([]);
     setCustomCategory('');
     setQualitative(game.qualitative || {
-      story: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      multiplayer: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      social: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      mechanics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      graphics: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      challenge: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      relaxation: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false },
-      pacing: { rating: 5, reason_text: '', was_expected: false, is_top_pillar: false }
+      story: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      multiplayer: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      social: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      mechanics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      gameplay_loop: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      game_design: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      interfaces: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      graphics: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      challenge: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      relaxation: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      pacing: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false },
+      replayability: { rating: 5, reason_text: '{}', was_expected: false, is_top_pillar: false }
     });
     setActiveModal('editGame');
   };
@@ -564,45 +577,63 @@ function Ledger({ token, games, subscriptions, onRefresh, editGameOnLoad, onClea
   // Helper labels for sliders
   const PILLAR_QUESTIONS = {
   story: [
-    { id: 'understand', text: 'Did you understand the story?', type: 'radio', options: ['Yes', 'No', 'Somewhat', 'N/A'] },
-    { id: 'impactful', text: 'Was the story impactful to you?', type: 'scale', min: 1, max: 5 },
-    { id: 'pacing', text: 'Was it slow or fast?', type: 'radio', options: ['Slow', 'Average', 'Fast', 'N/A'] }
+    { id: 'understand', text: 'How well did you understand the story?', type: 'scale', min: 0, max: 10 },
+    { id: 'impactful', text: 'Was the story impactful to you?', type: 'scale', min: 0, max: 10 },
+    { id: 'paced', text: 'How well was the story paced?', type: 'scale', min: 0, max: 10 }
   ],
   multiplayer: [
-    { id: 'coop_pvp', text: 'Is it Co-op or PvP?', type: 'radio', options: ['Co-op', 'PvP', 'Both', 'N/A'] },
-    { id: 'community', text: 'Is the community toxic or friendly?', type: 'scale', min: 1, max: 5 }
-  ],
-  mechanics: [
-    { id: 'intuitive', text: 'Are the controls intuitive?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'depth', text: 'Does the gameplay have good depth/progression?', type: 'scale', min: 1, max: 5 }
-  ],
-  graphics: [
-    { id: 'unique', text: 'Is the art style unique?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'performance', text: 'Are there technical/performance issues?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
-  ],
-  challenge: [
-    { id: 'punishing', text: 'Is it punishing or forgiving?', type: 'scale', min: 1, max: 5 },
-    { id: 'reflexes', text: 'Does it require fast reflexes?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
-  ],
-  relaxation: [
-    { id: 'chill', text: 'Is it a cozy/chill game?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'podcast', text: 'Can you play it while listening to a podcast?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
-  ],
-  pacing: [
-    { id: 'lulls', text: 'Are there frequent lulls?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'constant', text: 'Is the action constant?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
-  ],
-  engagement: [
-    { id: 'lose_track', text: 'Do you lose track of time?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'easy_put_down', text: 'Is it easy to put down?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
+    { id: 'tech_problems', text: 'Were there technical problems that kept you from enjoying or playing?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'tech_quit', text: 'Were the problems bad enough that you decided to stop playing?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'rewarding_loop', text: 'How rewarding is the multiplayer progression/loop?', type: 'scale', min: 0, max: 10 }
   ],
   social: [
-    { id: 'irl_friends', text: 'Do you play with IRL friends?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'comms', text: 'Does it require voice comms?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
+    { id: 'communication', text: 'How well does the game communicate your progress/skill level?', type: 'scale', min: 0, max: 10 },
+    { id: 'obtainable', text: 'Do the leaderboards feel obtainable and motivating?', type: 'scale', min: 0, max: 10 }
   ],
-  stress_intensity: [
-    { id: 'heart_rate', text: 'Does it raise your heart rate?', type: 'radio', options: ['Yes', 'No', 'N/A'] },
-    { id: 'exhausting', text: 'Is it mentally exhausting?', type: 'radio', options: ['Yes', 'No', 'N/A'] }
+  mechanics: [
+    { id: 'responsive', text: 'How responsive/fluid do the controls feel?', type: 'scale', min: 0, max: 10 },
+    { id: 'intuitive_actions', text: 'How fun and intuitive are the core actions?', type: 'scale', min: 0, max: 10 }
+  ],
+  gameplay_loop: [
+    { id: 'intrinsic', text: 'Intrinsic Satisfaction (Micro Loop): How satisfying is the baseline action?', type: 'scale', min: 0, max: 10 },
+    { id: 'reward_economy', text: 'Reward Economy: Do the rewards feel proportional to the effort?', type: 'scale', min: 0, max: 10 },
+    { id: 'compulsion', text: 'Compulsion (Macro Loop): How strongly does finishing one cycle make you start the next?', type: 'scale', min: 0, max: 10 },
+    { id: 'burnout_threshold', text: 'Burnout Threshold: At what point does the loop start feeling repetitive?', type: 'radio', options: ['Under 30 mins', '1-2 hours', '3+ hours', 'Never'] }
+  ],
+  game_design: [
+    { id: 'agency', text: 'Player Agency: How much freedom do you have to solve problems?', type: 'scale', min: 0, max: 10 },
+    { id: 'systemic_depth', text: 'Systemic Depth: How well do different mechanics work together?', type: 'scale', min: 0, max: 10 },
+    { id: 'balance', text: 'Balance & Strategic Variety: Did it encourage trying different strategies?', type: 'scale', min: 0, max: 10 }
+  ],
+  interfaces: [
+    { id: 'intuitive_menus', text: 'How intuitive and easy to navigate are the menus?', type: 'scale', min: 0, max: 10 },
+    { id: 'hud', text: 'Is the in-game HUD/interface obtrusive or cleanly designed?', type: 'scale', min: 0, max: 10 }
+  ],
+  graphics: [
+    { id: 'cohesive', text: 'How cohesive is the art direction?', type: 'scale', min: 0, max: 10 },
+    { id: 'appealing_menus', text: 'Are the menus/interfaces visually appealing?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  challenge: [
+    { id: 'fair', text: 'How fair did the challenges/deaths feel?', type: 'scale', min: 0, max: 10 },
+    { id: 'rewarding_overcome', text: 'How rewarding is it to overcome a difficult obstacle?', type: 'scale', min: 0, max: 10 },
+    { id: 'accessibility', text: 'Does the game offer appropriate accessibility/difficulty options?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  relaxation: [
+    { id: 'unwind', text: 'Do you play this game specifically to unwind?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'calming', text: 'How calming is the games atmosphere/vibe?', type: 'scale', min: 0, max: 10 },
+    { id: 'punishing_mistakes', text: 'How punishing are mistakes?', type: 'scale', min: 0, max: 10 },
+    { id: 'podcast', text: 'Can you play this game while listening to a podcast?', type: 'radio', options: ['Yes', 'No'] }
+  ],
+  pacing: [
+    { id: 'transition', text: 'How well does the game transition between action and downtime?', type: 'scale', min: 0, max: 10 },
+    { id: 'grinding', text: 'How much filler/grinding did you experience?', type: 'scale', min: 0, max: 10 },
+    { id: 'respect_time', text: 'Does the game respect your time?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'escalation', text: 'Pacing & Escalation: How well does the game introduce new mechanics over time?', type: 'scale', min: 0, max: 10 }
+  ],
+  replayability: [
+    { id: 'play_again', text: 'Do you see yourself playing this game again in the future?', type: 'radio', options: ['Yes', 'No'] },
+    { id: 'replay_frequency', text: 'If Yes, how often would you replay it?', type: 'radio', options: ['Daily/Weekly', 'Monthly', 'Annually', 'Rarely'] },
+    { id: 'variety', text: 'Does the game offer enough variety to warrant multiple playthroughs?', type: 'scale', min: 0, max: 10 }
   ]
 };
 
@@ -611,10 +642,14 @@ const pillarLabels = {
     multiplayer: 'Multiplayer',
     social: 'Community/Social',
     mechanics: 'Gameplay Mechanics',
+    gameplay_loop: 'Gameplay Loop',
+    game_design: 'Game Design',
+    interfaces: 'Interfaces & Menus',
     graphics: 'Graphics/Visuals',
     challenge: 'Challenge/Difficulty',
-    relaxation: 'Relaxation/Chill',
-    pacing: 'Pacing/Flow'
+    relaxation: 'Relaxation/Chill Factor',
+    pacing: 'Pacing/Flow',
+    replayability: 'Replayability'
   };
 
   const [expandedPillar, setExpandedPillar] = useState(null);
@@ -1053,18 +1088,59 @@ const pillarLabels = {
                         <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent)' }}>
                           Overall Score: {(() => {
                             let totalWeightedScore = 0;
-                        let totalMaxWeight = 0;
-                        Object.keys(pillarLabels).forEach(key => {
-                          const p = qualitative[key];
-                          if (p && p.rating !== null && p.rating !== '') {
-                            const r = parseInt(p.rating);
-                            const weight = p.is_top_pillar ? 2 : 1;
-                            totalWeightedScore += (r * weight);
-                            totalMaxWeight += (10 * weight);
-                          }
-                        });
-                        return totalMaxWeight > 0 ? `${Math.round((totalWeightedScore / totalMaxWeight) * 100)}/100` : 'TBD';
-                      })()}
+                            let totalMaxWeight = 0;
+                            Object.keys(pillarLabels).forEach(key => {
+                              const p = qualitative[key];
+                              if (p && p.rating !== null && p.rating !== '') {
+                                const r = parseInt(p.rating);
+                                const weight = p.is_top_pillar ? 2 : 1;
+                                
+                                let modifier = 0;
+                                let answers = {};
+                                try { answers = JSON.parse(p.reason_text || '{}'); } catch(e) {}
+                                
+                                // Expectation Matrix
+                                if (p.was_expected) {
+                                  const expectedQual = parseInt(answers.expected_quality);
+                                  if (!isNaN(expectedQual)) {
+                                    const isExpectedHigh = expectedQual >= 7;
+                                    const isExpectedLow = expectedQual <= 4;
+                                    const isActualHigh = r >= 7;
+                                    const isActualLow = r <= 4;
+                                    
+                                    if (isExpectedLow && isActualHigh) modifier += 10;
+                                    else if (isExpectedHigh && isActualHigh) modifier += 0;
+                                    else if (isExpectedHigh && isActualLow) modifier -= 20;
+                                    else if (isExpectedLow && isActualLow) modifier -= 5;
+                                  }
+                                } else {
+                                  const isActualHigh = r >= 7;
+                                  if (isActualHigh) modifier += 15;
+                                }
+                                
+                                // Sub-questions
+                                for (const [k, val] of Object.entries(answers)) {
+                                  if (k === 'expected_quality' || k === 'impacted_enjoyment' || k === 'burnout_threshold' || k === 'replay_frequency') continue;
+                                  const numVal = parseFloat(val);
+                                  if (!isNaN(numVal)) {
+                                    modifier += (numVal - 5) * 1;
+                                  } else if (val === 'Yes' || val === 'yes' || val === true) {
+                                    modifier += 2;
+                                  } else if (val === 'No' || val === 'no' || val === false) {
+                                    modifier -= 2;
+                                  }
+                                }
+
+                                let baseCatScore = r * 10;
+                                let finalCatScore = baseCatScore + modifier;
+                                finalCatScore = Math.max(0, Math.min(100, finalCatScore));
+
+                                totalWeightedScore += (finalCatScore * weight);
+                                totalMaxWeight += (100 * weight);
+                              }
+                            });
+                            return totalMaxWeight > 0 ? `${Math.round((totalWeightedScore / totalMaxWeight) * 100)}/100` : 'TBD';
+                          })()}
                     </div>
                   </div>
                   
@@ -1205,6 +1281,26 @@ const pillarLabels = {
                                     ))}
                                   </div>
                                 </div>
+                                
+                                {pData.was_expected === true && (
+                                  <div style={{ marginLeft: '24px', marginBottom: '8px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.88rem', marginBottom: '6px', color: '#fff', fontWeight: '500' }}>
+                                      What quality of {pillarLabels[key]} did you expect?
+                                    </label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <input 
+                                        type="range" 
+                                        min="0" 
+                                        max="10" 
+                                        value={answers.expected_quality ?? 5}
+                                        onChange={(e) => handleQualitativeQuestionChange(key, 'expected_quality', e.target.value)}
+                                        className="custom-range-slider"
+                                        style={{ width: '150px' }}
+                                      />
+                                      <span style={{ fontSize: '0.85rem' }}>{answers.expected_quality ?? 5}/10</span>
+                                    </div>
+                                  </div>
+                                )}
 
                                 {PILLAR_QUESTIONS[key]?.map(q => (
                                   <div key={q.id} style={{ marginLeft: '24px' }}>
