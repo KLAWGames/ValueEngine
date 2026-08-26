@@ -1815,6 +1815,229 @@ app.get('/api/recommendations/external', authenticateToken, async (req, res) => 
   }
 });
 
+// --- PLAYSTATION PLUS (PS+) ROUTES ---
+const psplusSync = require('./psplus_sync');
+
+// Get PS+ Games Catalog with Filtering and Sorting
+app.get('/api/psplus/games', async (req, res) => {
+  const { search, tier, sort, status, limit = 200, offset = 0 } = req.query;
+  const authHeader = req.headers['authorization'];
+  let currentUserId = null;
+
+  if (authHeader) {
+    const token = authHeader.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        currentUserId = decoded.userId;
+      } catch (e) { /* ignore invalid token for public listing */ }
+    }
+  }
+
+  try {
+    let query = `
+      SELECT 
+        p.*,
+        CASE WHEN w.watchlist_id IS NOT NULL THEN 1 ELSE 0 END AS in_watchlist,
+        w.status AS watchlist_status,
+        w.notes AS watchlist_notes
+      FROM psplus_catalog p
+      LEFT JOIN user_psplus_watchlist w ON p.psplus_id = w.psplus_id AND w.user_id = $1
+      WHERE 1=1
+    `;
+    const params = [currentUserId || ''];
+
+    if (search) {
+      params.push(`%${search.trim()}%`);
+      query += ` AND (p.title LIKE $${params.length} OR p.genres LIKE $${params.length} OR p.description LIKE $${params.length})`;
+    }
+
+    if (tier && tier !== 'all') {
+      params.push(tier.toLowerCase());
+      query += ` AND p.tier = $${params.length}`;
+    }
+
+    if (status === 'coming_soon') {
+      query += ` AND p.is_coming_soon = 1`;
+    } else if (status === 'available') {
+      query += ` AND p.is_coming_soon = 0`;
+    } else if (status === 'watchlist') {
+      query += ` AND w.watchlist_id IS NOT NULL`;
+    }
+
+    // Sorting
+    if (sort === 'metacritic') {
+      query += ` ORDER BY p.metacritic_score DESC NULLS LAST, p.date_added DESC`;
+    } else if (sort === 'title') {
+      query += ` ORDER BY p.title ASC`;
+    } else if (sort === 'release_date') {
+      query += ` ORDER BY p.release_date_psplus DESC NULLS LAST, p.date_added DESC`;
+    } else {
+      // Default: Most recently added
+      query += ` ORDER BY p.date_added DESC, p.metacritic_score DESC NULLS LAST`;
+    }
+
+    params.push(parseInt(limit, 10));
+    query += ` LIMIT $${params.length}`;
+    params.push(parseInt(offset, 10));
+    query += ` OFFSET $${params.length}`;
+
+    const result = await db.query(query, params);
+    
+    // Get total counts & tier breakdown
+    const statsResult = await db.query(`
+      SELECT 
+        COUNT(*) as total_count,
+        SUM(CASE WHEN tier = 'essential' THEN 1 ELSE 0 END) as essential_count,
+        SUM(CASE WHEN tier = 'extra' THEN 1 ELSE 0 END) as extra_count,
+        SUM(CASE WHEN tier = 'premium' THEN 1 ELSE 0 END) as premium_count,
+        SUM(CASE WHEN is_coming_soon = 1 THEN 1 ELSE 0 END) as coming_soon_count
+      FROM psplus_catalog
+    `);
+
+    res.json({
+      games: result.rows,
+      stats: statsResult.rows[0] || {},
+      last_synced: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error fetching PS+ games:', err);
+    res.status(500).json({ error: 'Failed to fetch PlayStation Plus catalog' });
+  }
+});
+
+// Get User's "Games to Try" Watchlist
+app.get('/api/psplus/watchlist', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  try {
+    const result = await db.query(`
+      SELECT 
+        w.watchlist_id, w.user_id, w.status, w.notes, w.priority, w.added_at,
+        p.psplus_id, p.title, p.tier, p.platforms, p.date_added, p.is_coming_soon,
+        p.release_date_psplus, p.metacritic_score, p.genres, p.publisher, p.image_url, p.description
+      FROM user_psplus_watchlist w
+      JOIN psplus_catalog p ON w.psplus_id = p.psplus_id
+      WHERE w.user_id = $1
+      ORDER BY w.added_at DESC
+    `, [userId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching watchlist:', err);
+    res.status(500).json({ error: 'Failed to fetch watchlist' });
+  }
+});
+
+// Add / Toggle Game in User's "Games to Try" Watchlist
+app.post('/api/psplus/watchlist', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const { psplus_id, notes, priority = 'medium', status = 'to_try' } = req.body;
+
+  if (!psplus_id) {
+    return res.status(400).json({ error: 'psplus_id is required' });
+  }
+
+  try {
+    const existing = await db.query(
+      'SELECT * FROM user_psplus_watchlist WHERE user_id = $1 AND psplus_id = $2',
+      [userId, psplus_id]
+    );
+
+    if (existing.rows.length > 0) {
+      // Toggle off / remove
+      await db.query(
+        'DELETE FROM user_psplus_watchlist WHERE user_id = $1 AND psplus_id = $2',
+        [userId, psplus_id]
+      );
+      return res.json({ message: 'Removed from Games to Try', in_watchlist: false });
+    }
+
+    const watchlistId = crypto.randomUUID();
+    await db.query(`
+      INSERT INTO user_psplus_watchlist (watchlist_id, user_id, psplus_id, notes, priority, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [watchlistId, userId, psplus_id, notes || null, priority, status]);
+
+    res.status(201).json({ message: 'Added to Games to Try', in_watchlist: true });
+  } catch (err) {
+    console.error('Error updating watchlist:', err);
+    res.status(500).json({ error: 'Failed to update watchlist' });
+  }
+});
+
+// Remove from Watchlist
+app.delete('/api/psplus/watchlist/:psplusId', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const { psplusId } = req.params;
+
+  try {
+    await db.query(
+      'DELETE FROM user_psplus_watchlist WHERE user_id = $1 AND psplus_id = $2',
+      [userId, psplusId]
+    );
+    res.json({ message: 'Removed from watchlist successfully' });
+  } catch (err) {
+    console.error('Error removing from watchlist:', err);
+    res.status(500).json({ error: 'Failed to delete from watchlist' });
+  }
+});
+
+// Import PS+ Game into Value Engine Game Ledger
+app.post('/api/psplus/import-to-ledger', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const { psplus_id, subscription_id } = req.body;
+
+  if (!psplus_id) {
+    return res.status(400).json({ error: 'psplus_id is required' });
+  }
+
+  try {
+    const psGameRes = await db.query('SELECT * FROM psplus_catalog WHERE psplus_id = $1', [psplus_id]);
+    const psGame = psGameRes.rows[0];
+    if (!psGame) {
+      return res.status(404).json({ error: 'PS+ game not found' });
+    }
+
+    // Check if subscription exists or find PS Plus subscription for user
+    let subId = subscription_id;
+    if (!subId) {
+      const userSubs = await db.query(
+        "SELECT subscription_id FROM subscriptions WHERE user_id = $1 AND name LIKE '%PlayStation%' LIMIT 1",
+        [userId]
+      );
+      if (userSubs.rows.length > 0) {
+        subId = userSubs.rows[0].subscription_id;
+      }
+    }
+
+    const gameId = crypto.randomUUID();
+    await db.query(`
+      INSERT INTO games (
+        game_id, user_id, title, acquisition_type, subscription_id, 
+        base_cost, elo_rating, unplayed, overall_hours, status, has_opinion
+      ) VALUES ($1, $2, $3, 'subscription', $4, 0.00, 1200, 1, 0.00, 'unplayed', 0)
+    `, [gameId, userId, psGame.title, subId || null]);
+
+    res.status(201).json({
+      message: `"${psGame.title}" successfully added to your Game Ledger!`,
+      game_id: gameId
+    });
+  } catch (err) {
+    console.error('Error importing PS+ game to ledger:', err);
+    res.status(500).json({ error: 'Failed to import PS+ game to ledger' });
+  }
+});
+
+// Trigger On-Demand PS+ Sync
+app.post('/api/psplus/sync', async (req, res) => {
+  try {
+    const result = await psplusSync.syncPsPlusCatalog();
+    res.json({ message: 'PlayStation Plus catalog synchronized successfully', ...result });
+  } catch (err) {
+    console.error('Error syncing PS+ catalog:', err);
+    res.status(500).json({ error: 'Failed to sync PlayStation Plus catalog' });
+  }
+});
+
 // --- SERVER INITIALIZATION ---
 
 const path = require('path');
@@ -1826,6 +2049,9 @@ app.use(express.static(path.join(__dirname, 'frontend/dist')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
+
+// Initialize twice-daily PS+ catalog scheduler
+psplusSync.startTwiceDailySyncScheduler();
 
 // Avoid app.listen when running under Vercel Serverless environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {

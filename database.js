@@ -148,6 +148,32 @@ const initDb = async () => {
         was_expected BOOLEAN DEFAULT 0,
         is_top_pillar BOOLEAN DEFAULT 0,
         UNIQUE(game_id, pillar_name)
+      );`,
+      `CREATE TABLE IF NOT EXISTS psplus_catalog (
+        psplus_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        tier TEXT NOT NULL,
+        platforms TEXT DEFAULT 'PS5, PS4',
+        date_added TEXT,
+        is_coming_soon BOOLEAN DEFAULT 0,
+        release_date_psplus TEXT,
+        leaving_date TEXT,
+        metacritic_score INTEGER,
+        genres TEXT,
+        publisher TEXT,
+        image_url TEXT,
+        description TEXT,
+        last_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS user_psplus_watchlist (
+        watchlist_id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+        psplus_id TEXT REFERENCES psplus_catalog(psplus_id) ON DELETE CASCADE,
+        notes TEXT,
+        priority TEXT DEFAULT 'medium',
+        status TEXT DEFAULT 'to_try',
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, psplus_id)
       );`
     ];
 
@@ -191,9 +217,10 @@ const initDb = async () => {
   }
 };
 
-initDb();
+const initDbPromise = initDb();
 
 module.exports = {
+  initDbPromise,
   // Translate Postgres $1 positional queries to SQLite ? queries
   query: async (text, params = []) => {
     let sqliteParams = [];

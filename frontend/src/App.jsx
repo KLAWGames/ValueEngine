@@ -6,7 +6,8 @@ import Ledger from './views/Ledger';
 import PairwiseEngine from './views/PairwiseEngine';
 import Subscriptions from './views/Subscriptions';
 import RecommendationView from './views/RecommendationView';
-import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Settings, Clock, PlusCircle, ArrowLeft, CheckCircle2, Compass } from 'lucide-react';
+import PsPlusView from './views/PsPlusView';
+import { Gamepad2, LayoutDashboard, Database, Flame, LogOut, CreditCard, X, Settings, Clock, PlusCircle, ArrowLeft, CheckCircle2, Compass, Sparkles } from 'lucide-react';
 
 function App() {
   const [token, setToken] = useState(() => {
@@ -280,6 +281,17 @@ function App() {
               }}
             />
           )}
+          {activeTab === 'psplus' && (
+            <PsPlusView
+              token={token}
+              onNavigate={setActiveTab}
+              onRefreshLedger={fetchGames}
+              onTriggerEditGame={(game) => {
+                setEditGameOnLoad(game);
+                setActiveTab('ledger');
+              }}
+            />
+          )}
           {activeTab === 'settings' && (
             <div className="glass-panel settings-view" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
               <div>
@@ -377,6 +389,14 @@ function App() {
           >
             <Compass size={20} />
             <span>Oracle</span>
+          </div>
+
+          <div 
+            className={`tab-item ${activeTab === 'psplus' ? 'active' : ''}`}
+            onClick={() => setActiveTab('psplus')}
+          >
+            <Sparkles size={20} />
+            <span>PS+</span>
           </div>
 
           <div 
