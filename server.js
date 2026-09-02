@@ -2041,13 +2041,30 @@ app.post('/api/psplus/sync', async (req, res) => {
 // --- SERVER INITIALIZATION ---
 
 const path = require('path');
+const fs = require('fs');
 
-// Serve static assets from frontend build
-app.use(express.static(path.join(__dirname, 'frontend/dist')));
+// Serve static assets from frontend build or root dist
+const frontendDistPath = path.join(__dirname, 'frontend/dist');
+const rootDistPath = path.join(__dirname, 'dist');
 
-// Fallback to frontend index.html
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+}
+if (fs.existsSync(rootDistPath)) {
+  app.use(express.static(rootDistPath));
+}
+
+// Fallback to index.html (check frontend/dist first, then root dist)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
+  const file1 = path.join(frontendDistPath, 'index.html');
+  const file2 = path.join(rootDistPath, 'index.html');
+  if (fs.existsSync(file1)) {
+    return res.sendFile(file1);
+  }
+  if (fs.existsSync(file2)) {
+    return res.sendFile(file2);
+  }
+  res.status(404).send('Frontend build not found. Please run npm run build.');
 });
 
 // Initialize twice-daily PS+ catalog scheduler

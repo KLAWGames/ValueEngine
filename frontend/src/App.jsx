@@ -455,10 +455,11 @@ function WelcomeModal({ games, token, onClose, onRefresh, onAddGame, onGoToDashb
   const [successMsg, setSuccessMsg] = useState('');
 
   // Sort games for selection: Recently Played first, then Alpha
-  const recentGames = games.filter(g => g.last_played_at || g.total_hours > 0).slice(0, 6);
-  const allAlphaGames = [...games].sort((a, b) => a.title.localeCompare(b.title));
+  const safeGamesList = Array.isArray(games) ? games : [];
+  const recentGames = safeGamesList.filter(g => g && (g.last_played_at || (parseFloat(g.total_hours) || 0) > 0)).slice(0, 6);
+  const allAlphaGames = [...safeGamesList].sort((a, b) => (a?.title || '').localeCompare(b?.title || ''));
   const searchFilteredGames = allAlphaGames.filter(g => 
-    g.title.toLowerCase().includes(searchQuery.toLowerCase())
+    (g?.title || '').toLowerCase().includes((searchQuery || '').toLowerCase())
   );
 
   const toggleGameSelection = (gameId) => {
