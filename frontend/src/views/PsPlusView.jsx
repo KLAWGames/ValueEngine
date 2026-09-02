@@ -322,60 +322,85 @@ function PsPlusView({ token, onTriggerEditGame, onNavigate, onRefreshLedger }) {
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
             {comingSoonGames.map(game => (
               <div 
                 key={game.psplus_id} 
                 style={{ 
-                  background: 'rgba(0,0,0,0.3)', 
-                  borderRadius: '10px', 
-                  padding: '12px', 
-                  border: '1px solid rgba(236, 72, 153, 0.25)',
+                  background: 'rgba(0,0,0,0.35)', 
+                  borderRadius: '12px', 
+                  padding: '14px 16px', 
+                  border: '1px solid rgba(236, 72, 153, 0.3)',
                   display: 'flex',
-                  gap: '12px',
-                  alignItems: 'center'
+                  flexDirection: 'column',
+                  gap: '10px'
                 }}
               >
-                {game.image_url ? (
-                  <img 
-                    src={game.image_url} 
-                    alt={game.title} 
-                    style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
-                  />
-                ) : (
-                  <div style={{ width: '60px', height: '60px', borderRadius: '8px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Sparkles size={20} color="#ec4899" />
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                  <div style={{ fontSize: '1.05rem', fontWeight: '700', color: '#fff', lineHeight: '1.3', flex: 1 }}>
                     {game.title}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                    {getTierBadge(game.tier)}
-                    <span style={{ fontSize: '0.7rem', color: '#f472b6', fontWeight: '600' }}>
-                      📅 {game.release_date_psplus || 'Upcoming'}
-                    </span>
-                  </div>
+                  {getTierBadge(game.tier)}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#f472b6', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    📅 <span>Releases: {game.release_date_psplus || 'Upcoming'}</span>
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)', padding: '3px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                    {game.platforms || 'PS5, PS4'}
+                  </span>
+                </div>
+
+                {game.description && (
+                  <p style={{ 
+                    fontSize: '0.78rem', 
+                    color: 'var(--text-secondary)', 
+                    lineHeight: '1.45',
+                    margin: '2px 0 0 0'
+                  }}>
+                    {game.description}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '4px' }}>
                   <button 
                     onClick={() => handleToggleWatchlist(game)}
                     style={{
-                      marginTop: '6px',
-                      background: game.in_watchlist ? 'rgba(234, 179, 8, 0.2)' : 'rgba(255,255,255,0.08)',
+                      flex: 1,
+                      background: game.in_watchlist ? 'rgba(234, 179, 8, 0.2)' : 'rgba(255,255,255,0.06)',
                       color: game.in_watchlist ? '#fbbf24' : 'var(--text-secondary)',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '3px 8px',
-                      fontSize: '0.7rem',
+                      border: game.in_watchlist ? '1px solid #fbbf24' : '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '0.78rem',
                       fontWeight: '600',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px'
+                      justifyContent: 'center',
+                      gap: '5px'
                     }}
                   >
-                    <Star size={12} fill={game.in_watchlist ? '#fbbf24' : 'none'} />
+                    <Star size={13} fill={game.in_watchlist ? '#fbbf24' : 'none'} />
                     <span>{game.in_watchlist ? 'In Try List' : 'Add to Try List'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleImportToLedger(game)}
+                    className="btn btn-primary"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      fontSize: '0.78rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <Plus size={13} />
+                    <span>+ Ledger</span>
                   </button>
                 </div>
               </div>
@@ -562,68 +587,40 @@ function PsPlusView({ token, onTriggerEditGame, onNavigate, onRefreshLedger }) {
                   border: game.in_watchlist ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--border-color)'
                 }}
               >
-                {/* Top Banner Row */}
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  
-                  {/* Game Cover / Icon */}
-                  {game.image_url ? (
-                    <img 
-                      src={game.image_url} 
-                      alt={game.title} 
-                      style={{ 
-                        width: '72px', 
-                        height: '72px', 
-                        borderRadius: '10px', 
-                        objectFit: 'cover', 
-                        flexShrink: 0,
-                        boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
-                      }} 
-                    />
-                  ) : (
-                    <div style={{ 
-                      width: '72px', 
-                      height: '72px', 
-                      borderRadius: '10px', 
-                      background: 'linear-gradient(135deg, #1e293b, #0f172a)', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      flexShrink: 0 
-                    }}>
-                      <Sparkles size={24} color="#6366f1" />
-                    </div>
-                  )}
-
-                  {/* Title & Tier Info */}
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                      {getTierBadge(game.tier)}
-                      <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
-                        {game.platforms || 'PS5/PS4'}
-                      </span>
-                    </div>
-
+                {/* Header Row: Title & Badges */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                     <h4 style={{ 
-                      fontSize: '1rem', 
+                      fontSize: '1.05rem', 
                       fontWeight: '700', 
                       color: '#fff', 
                       lineHeight: '1.3',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
+                      flex: 1,
+                      margin: 0
                     }}>
                       {game.title}
                     </h4>
+                    {getTierBadge(game.tier)}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                      {game.platforms || 'PS5/PS4'}
+                    </span>
+                    {game.genres && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {game.genres}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Score & Timing Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '8px 10px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.25)', padding: '8px 12px', borderRadius: '8px' }}>
                   
                   {/* Metacritic Score Pill */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Metacritic:</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600' }}>Metacritic:</span>
                     {game.metacritic_score ? (
                       <span style={{ 
                         background: metaStyle.bg, 
@@ -657,12 +654,12 @@ function PsPlusView({ token, onTriggerEditGame, onNavigate, onRefreshLedger }) {
                 {/* Description Snippet */}
                 {game.description && (
                   <p style={{ 
-                    fontSize: '0.75rem', 
+                    fontSize: '0.78rem', 
                     color: 'var(--text-secondary)', 
-                    lineHeight: '1.4',
+                    lineHeight: '1.45',
                     margin: 0,
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: 3,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden'
                   }}>
