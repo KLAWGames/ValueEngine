@@ -1,0 +1,20 @@
+{
+  "name": "Value Engine",
+  "install": "npm install\nnpm install --prefix frontend",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "TURSO_DATABASE_URL=\"file:local.db\" PORT=5000 node server.js",
+      "description": "Express API server on http://localhost:5000. Uses a self-contained local libSQL file database (local.db); runs migrations and the PS+ catalog sync on boot."
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && npm run dev -- --host --port 5173",
+      "description": "Vite dev server on http://localhost:5173. Proxies /api/* to the backend on port 5000."
+    }
+  ],
+  "ports": [
+    { "name": "backend api", "port": 5000 },
+    { "name": "frontend", "port": 5173 }
+  ]
+}
